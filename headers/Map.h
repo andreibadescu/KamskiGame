@@ -11,10 +11,8 @@ public:
     void init(u32 sizeX, u32 sizeY);
     void load() const;
     void render(void(*draw)(const glm::vec2& position, const glm::vec2& size, u32 texId)) const;
-
-    void linkTextureTagAndId(texture_id id, TextureTag tag);
     [[nodiscard]]
-    texture_id getTextureIdByTag(TextureTag tag) const;
+    glm::vec2 getQuadSize() const;
 
 private:
     struct
@@ -26,5 +24,6 @@ private:
             u32 y;
         } size;
     } map{};
-    texture_id textureIdsByTag[static_cast<u32>(TextureTag::COUNT)]{};
+
+    glm::vec2 quadSize;
 };

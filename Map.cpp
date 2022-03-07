@@ -1,4 +1,5 @@
 #include "headers/Map.h"
+#include "headers/GameState.h"
 
 void Map::init(const u32 sizeX, const u32 sizeY)
 {
@@ -6,6 +7,7 @@ void Map::init(const u32 sizeX, const u32 sizeY)
     map.size.y = sizeY;
     // TODO: Use LinearAllocator instead of new
     map.tiles = new texture_id[sizeY * sizeX]{};
+    quadSize = { 2.0f / static_cast<f32>(map.size.x), 2.0f / static_cast<f32>(map.size.y) };
 }
 
 void Map::load() const
@@ -15,9 +17,9 @@ void Map::load() const
     for (u32 i = 1; i + 1 < map.size.y; ++i)
     {
         // tiles[i][0]
-        map.tiles[i * map.size.x] = getTextureIdByTag(TextureTag::WALL_LEFT);
+        map.tiles[i * map.size.x] = GameState::getTextureIdByTag(TextureTag::WALL_LEFT);
         // tiles[i][sizeX - 1]
-        map.tiles[(i + 1) * map.size.x - 1] = getTextureIdByTag(TextureTag::WALL_RIGHT);
+        map.tiles[(i + 1) * map.size.x - 1] = GameState::getTextureIdByTag(TextureTag::WALL_RIGHT);
     }
 
     // TOP and BOTTOM edges
@@ -25,20 +27,20 @@ void Map::load() const
     for (u32 j = 1; j + 1 < map.size.x; ++j)
     {
         // tiles[0][j]
-        map.tiles[j] = getTextureIdByTag(TextureTag::WALL_BOTTOM);
+        map.tiles[j] = GameState::getTextureIdByTag(TextureTag::WALL_BOTTOM);
         // tiles[sizeY - 1][j]
-        map.tiles[(map.size.y - 1) * map.size.x + j] = getTextureIdByTag(TextureTag::WALL_TOP);
+        map.tiles[(map.size.y - 1) * map.size.x + j] = GameState::getTextureIdByTag(TextureTag::WALL_TOP);
     }
 
     // CORNERS
     // tiles[0][0]
-    map.tiles[0] = getTextureIdByTag(TextureTag::WALL_CORNER_BOTTOM_LEFT);
+    map.tiles[0] = GameState::getTextureIdByTag(TextureTag::WALL_CORNER_BOTTOM_LEFT);
     // tiles[0][map.size.x - 1]
-    map.tiles[map.size.x - 1] = getTextureIdByTag(TextureTag::WALL_CORNER_BOTTOM_RIGHT);
+    map.tiles[map.size.x - 1] = GameState::getTextureIdByTag(TextureTag::WALL_CORNER_BOTTOM_RIGHT);
     // tiles[map.size.y - 1][0]
-    map.tiles[map.size.x * (map.size.y - 1)] = getTextureIdByTag(TextureTag::WALL_CORNER_TOP_LEFT);
+    map.tiles[map.size.x * (map.size.y - 1)] = GameState::getTextureIdByTag(TextureTag::WALL_CORNER_TOP_LEFT);
     // tiles[map.size.y - 1][map.size.x - 1]
-    map.tiles[map.size.x * map.size.y - 1] = getTextureIdByTag(TextureTag::WALL_CORNER_TOP_RIGHT);
+    map.tiles[map.size.x * map.size.y - 1] = GameState::getTextureIdByTag(TextureTag::WALL_CORNER_TOP_RIGHT);
 
     // NO EDGE, only inside tiles
     // i = {1, 2, 3, ..., map.size.y - 2}
@@ -47,14 +49,13 @@ void Map::load() const
     {
         for (u32 j = 1; j + 1 < map.size.x; ++j)
         {
-            map.tiles[i * map.size.x + j] = getTextureIdByTag(TextureTag::FLOOR);
+            map.tiles[i * map.size.x + j] = GameState::getTextureIdByTag(TextureTag::FLOOR);
         }
     }
 }
 
 void Map::render(void(*draw)(const glm::vec2& position, const glm::vec2& size, u32 texId)) const
 {
-    const glm::vec2 quadSize{ 2.0f / static_cast<f32>(map.size.x), 2.0f / static_cast<f32>(map.size.y) };
     for (u32 i = 0; i < map.size.y; ++i)
     {
         for (u32 j = 0; j < map.size.x; ++j)
@@ -68,12 +69,7 @@ void Map::render(void(*draw)(const glm::vec2& position, const glm::vec2& size, u
     }
 }
 
-void Map::linkTextureTagAndId(const texture_id id, const TextureTag tag)
+glm::vec2 Map::getQuadSize() const
 {
-    textureIdsByTag[static_cast<u32>(tag)] = id;
-}
-
-texture_id Map::getTextureIdByTag(const TextureTag tag) const
-{
-    return textureIdsByTag[static_cast<u32>(tag)];
+    return quadSize;
 }
