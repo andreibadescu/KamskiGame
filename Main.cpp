@@ -25,7 +25,7 @@ enum class TextureTag
 const char* texturePaths[] = 
 {
     "assets/floor.png",  
-    "assets/wall_right.png",  
+    "assets/wall_right.png",
     "assets/wall_left.png",  
     "assets/wall_mid.png",  
     "assets/wall_bottom_mid.png",
@@ -42,6 +42,22 @@ struct Sprite
     u32 texId;
 };
 
+struct InputState
+{
+    struct
+    {
+        KeyState walkForward;
+        KeyState walkDownward;
+        KeyState walkRight;
+        KeyState walkLeft;
+    };
+    
+    static constexpr u64 actionCount()
+    {
+        return sizeof(InputState) / sizeof(KeyState);
+    }
+};
+
 struct GameState
 {
     u32 map[MAP_SIZE][MAP_SIZE];
@@ -50,19 +66,12 @@ struct GameState
     ComponentVector<Sprite> spriteComponents;
     Entity playerId;
     Entity enemyId;
-};
-
-struct InputState
-{
-    KeyState walkForward;
-    KeyState walkDownward;
-    KeyState walkRight;
-    KeyState walkLeft;
+    InputState inputState;
 };
 
 extern "C"
 __declspec(dllexport)
-void gameInit(const GameLog& logger, void* inputState, GameState& gameState, GameRenderer& renderer, GameMemory& memory)
+void gameInit(const GameLog& logger, GameState& gameState, GameRenderer& renderer, GameMemory& memory)
 {
     
     gameState.playerId = 0;
@@ -99,37 +108,37 @@ void gameInit(const GameLog& logger, void* inputState, GameState& gameState, Gam
 
 extern "C"
 __declspec(dllexport)
-void gameInput(const GameLog& logger, const GameIO& input, InputState& inputState, void* gameState, GameMemory& memory)
+void gameInput(const GameLog& logger, const GameIO& input, GameState& gameState, GameMemory& memory)
 {
-    inputState.walkForward = input.getKeyState('W');
-    inputState.walkDownward= input.getKeyState('S');
-    inputState.walkRight = input.getKeyState('D');
-    inputState.walkLeft = input.getKeyState('A');
+    gameState.inputState.walkForward = input.getKeyState('W');
+    gameState.inputState.walkDownward= input.getKeyState('S');
+    gameState.inputState.walkRight = input.getKeyState('D');
+    gameState.inputState.walkLeft = input.getKeyState('A');
 }
 
 extern "C"
 __declspec(dllexport)
-void gameUpdate(const GameLog& logger, GameState& gameState, const InputState& inputState, GameMemory& memory, f64& dt)
+void gameUpdate(const GameLog& logger, GameState& gameState, GameMemory& memory, f64& dt)
 {
     //logInfo("dt:%f", dt);
     Sprite& playerSprite = gameState.spriteComponents.getComponent(gameState.playerId); //ew improve interface
-    f32 speed = 0.2f;
-    if(inputState.walkForward == KeyState::HOLD)
+    f32 speed = 0.5f;
+    if(gameState.inputState.walkForward == KeyState::HOLD)
     {
         playerSprite.y += speed * dt;
     }
     
-    if(inputState.walkDownward == KeyState::HOLD)
+    if(gameState.inputState.walkDownward == KeyState::HOLD)
     {
         playerSprite.y -= speed * dt;
     }
     
-    if(inputState.walkRight == KeyState::HOLD)
+    if(gameState.inputState.walkRight == KeyState::HOLD)
     {
         playerSprite.x += speed * dt;
     }
     
-    if(inputState.walkLeft== KeyState::HOLD)
+    if(gameState.inputState.walkLeft== KeyState::HOLD)
     {
         playerSprite.x -= speed * dt;
     }
@@ -153,7 +162,7 @@ void gameRender(const GameLog& logger, GameRenderer& renderer, const GameState& 
     
     for(const Sprite& sp : gameState.spriteComponents.iterateComponents())
     {
-        renderer.drawQuad({sp.x, sp.y}, {tileSize, tileSize}, sp.texId);
+        renderer.drawQuad({sp.x, sp.y}, glm::vec2{tileSize, tileSize} * 2.0f, sp.texId);
     }
     
     renderer.endBatch();
