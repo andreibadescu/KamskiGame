@@ -17,9 +17,9 @@ void Map::load() const
     for (u32 i = 1; i + 1 < map.size.y; ++i)
     {
         // tiles[i][0]
-        map.tiles[i * map.size.x] = GameState::getTextureIdByTag(TextureTag::WALL_LEFT);
+        map.tiles[i * map.size.x] = GAME_STATE->getTextureIdByTag(TextureTag::WALL_LEFT);
         // tiles[i][sizeX - 1]
-        map.tiles[(i + 1) * map.size.x - 1] = GameState::getTextureIdByTag(TextureTag::WALL_RIGHT);
+        map.tiles[(i + 1) * map.size.x - 1] = GAME_STATE->getTextureIdByTag(TextureTag::WALL_RIGHT);
     }
 
     // TOP and BOTTOM edges
@@ -27,20 +27,20 @@ void Map::load() const
     for (u32 j = 1; j + 1 < map.size.x; ++j)
     {
         // tiles[0][j]
-        map.tiles[j] = GameState::getTextureIdByTag(TextureTag::WALL_BOTTOM);
+        map.tiles[j] = GAME_STATE->getTextureIdByTag(TextureTag::WALL_BOTTOM);
         // tiles[sizeY - 1][j]
-        map.tiles[(map.size.y - 1) * map.size.x + j] = GameState::getTextureIdByTag(TextureTag::WALL_TOP);
+        map.tiles[(map.size.y - 1) * map.size.x + j] = GAME_STATE->getTextureIdByTag(TextureTag::WALL_TOP);
     }
 
     // CORNERS
     // tiles[0][0]
-    map.tiles[0] = GameState::getTextureIdByTag(TextureTag::WALL_CORNER_BOTTOM_LEFT);
+    map.tiles[0] = GAME_STATE->getTextureIdByTag(TextureTag::WALL_CORNER_BOTTOM_LEFT);
     // tiles[0][map.size.x - 1]
-    map.tiles[map.size.x - 1] = GameState::getTextureIdByTag(TextureTag::WALL_CORNER_BOTTOM_RIGHT);
+    map.tiles[map.size.x - 1] = GAME_STATE->getTextureIdByTag(TextureTag::WALL_CORNER_BOTTOM_RIGHT);
     // tiles[map.size.y - 1][0]
-    map.tiles[map.size.x * (map.size.y - 1)] = GameState::getTextureIdByTag(TextureTag::WALL_CORNER_TOP_LEFT);
+    map.tiles[map.size.x * (map.size.y - 1)] = GAME_STATE->getTextureIdByTag(TextureTag::WALL_CORNER_TOP_LEFT);
     // tiles[map.size.y - 1][map.size.x - 1]
-    map.tiles[map.size.x * map.size.y - 1] = GameState::getTextureIdByTag(TextureTag::WALL_CORNER_TOP_RIGHT);
+    map.tiles[map.size.x * map.size.y - 1] = GAME_STATE->getTextureIdByTag(TextureTag::WALL_CORNER_TOP_RIGHT);
 
     // NO EDGE, only inside tiles
     // i = {1, 2, 3, ..., map.size.y - 2}
@@ -49,12 +49,12 @@ void Map::load() const
     {
         for (u32 j = 1; j + 1 < map.size.x; ++j)
         {
-            map.tiles[i * map.size.x + j] = GameState::getTextureIdByTag(TextureTag::FLOOR);
+            map.tiles[i * map.size.x + j] = GAME_STATE->getTextureIdByTag(TextureTag::FLOOR);
         }
     }
 }
 
-void Map::render(void(*draw)(const glm::vec2& position, const glm::vec2& size, u32 texId)) const
+void Map::render() const
 {
     for (u32 i = 0; i < map.size.y; ++i)
     {
@@ -64,7 +64,7 @@ void Map::render(void(*draw)(const glm::vec2& position, const glm::vec2& size, u
             glm::vec2 position = glm::vec2(quadSize.x * static_cast<f32>(j), quadSize.y * static_cast<f32>(i))
                 + quadSize / 2.0f
                 - 1.0f;
-            draw(position, quadSize, map.tiles[i * map.size.x + j]);
+            RENDERER->drawTexturedQuad({ position, 0.9999f }, quadSize, map.tiles[i * map.size.x + j], 0);
         }
     }
 }

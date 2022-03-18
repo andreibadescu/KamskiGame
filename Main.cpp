@@ -1,59 +1,101 @@
-#include "KamskiEngine/KamskiRenderer.h"
-#include "KamskiEngine/KamskiIO.h"
-#include "KamskiEngine/KamskiMemory.h"
-#include "KamskiEngine/KamskiLog.h"
-
+#include "headers/Defines.h"
 #include "headers/GameState.h"
-#include "headers/InputState.h"
 
 extern "C"
 __declspec(dllexport)
-void gameInit(const GameLog& logger, GameState& gameState, const GameRenderer& renderer, GameMemory& memory)
+void loadEngine(const GameLog& logger, GameState& gameState, const GameRenderer& renderer, GameMemory& memory)
 {
-    gameState.map.init(MAP_SIZE_X, MAP_SIZE_Y);
-    gameState.setDrawFunction(renderer.drawQuad);
+    /* INIT ENGINE SUBSYSTEMS */
+    LOGGER = &logger;
+    GAME_STATE = &gameState;
+    RENDERER = &renderer;
+    MEMORY = &memory;
+}
+
+extern "C"
+__declspec(dllexport)
+void gameInit()
+{
+    GAME_STATE->map.init(MAP_SIZE_X, MAP_SIZE_Y);
 
     for (u8 i = 0; i < TEXTURE_COUNT; ++i)
     {
-        const texture_id textureId = static_cast<texture_id>(renderer.loadTexture(TEXTURE_PATHS[i]));
-        GameState::linkTextureIdByTag(textureId, static_cast<TextureTag>(i));
+        const texture_id textureId = RENDERER->loadTexture(TEXTURE_PATHS[i]);
+        GAME_STATE->linkTextureIdByTag(textureId, static_cast<TextureTag>(i));
     }
 
-    gameState.addPlayer(0, 0.0f, 0.0f, GameState::getTextureIdByTag(TextureTag::PLAYER), 0.4f, 500, 50);
-    gameState.addEnemy(1, -0.5f, -0.5f, GameState::getTextureIdByTag(TextureTag::ENEMY), 0.2f, 200, 20);
-    gameState.addEnemy(2, 0.5f, -0.5f, GameState::getTextureIdByTag(TextureTag::ENEMY), 0.2f, 200, 20);
-    gameState.addEnemy(3, -0.5f, 0.5f, GameState::getTextureIdByTag(TextureTag::ENEMY), 0.2f, 200, 20);
-    gameState.addEnemy(4, 0.5f, 0.5f, GameState::getTextureIdByTag(TextureTag::ENEMY), 0.2f, 200, 20);
+    GAME_STATE->addPlayer(0, { 0.0f, 0.0f }, TextureTag::PLAYER, 0.5f, 200, 50);
+    GAME_STATE->addEnemy(2, {-0.5f, -0.5f}, TextureTag::ENEMY, 0.2f, 200, 25);
+    GAME_STATE->addEnemy(4, { 0.5f, -0.5f }, TextureTag::ENEMY, 0.2f, 200, 25);
+    GAME_STATE->addEnemy(6, { -0.5f, 0.5f }, TextureTag::ENEMY, 0.2f, 200, 25);
+    GAME_STATE->addEnemy(8, { 0.5f, 0.5f }, TextureTag::ENEMY, 0.2f, 200, 25);
 
-    gameState.map.load();
-
+    GAME_STATE->map.load();
+    GAME_STATE->stopGame();
+    GAME_STATE->updateFollowers();
     logInfo("[+] Init - done!");
 }
 
 extern "C"
 __declspec(dllexport)
-void gameInput(const GameLog& logger, const GameIO& input, GameState& gameState)
+void gameInput(const GameIO& input)
 {
-    gameState.input.setUp(input.getKeyState('W') == KeyState::HOLD || input.getKeyState('W') == KeyState::PRESS);
-    gameState.input.setLeft(input.getKeyState('A') == KeyState::HOLD || input.getKeyState('A') == KeyState::PRESS);
-    gameState.input.setDown(input.getKeyState('S') == KeyState::HOLD || input.getKeyState('S') == KeyState::PRESS);
-    gameState.input.setRight(input.getKeyState('D') == KeyState::HOLD || input.getKeyState('D') == KeyState::PRESS);
+    // set action keys
+    GAME_STATE->actionState.startGame = input.getKeyState('R');
+    GAME_STATE->actionState.walkUp = input.getKeyState('W');
+    GAME_STATE->actionState.walkLeft = input.getKeyState('A');
+    GAME_STATE->actionState.walkDown = input.getKeyState('S');
+    GAME_STATE->actionState.walkRight = input.getKeyState('D');
+    GAME_STATE->actionState.attack = input.getSpecialKeyState(SpecialKeyCode::SPACE);
+    GAME_STATE->actionState.restart = input.getSpecialKeyState(SpecialKeyCode::RETURN);
+    // set cursor position
+    input.getMousePosition(GAME_STATE->cursorPosition.x, GAME_STATE->cursorPosition.y);
 }
 
 extern "C"
 __declspec(dllexport)
-void gameUpdate(const GameLog& logger, GameState& gameState, GameMemory& memory, f64& deltaTime)
+void gameUpdate(f64& deltaTime)
 {
-    gameState.updatePlayer(static_cast<f32>(deltaTime));
-    gameState.updateEnemies(static_cast<f32>(deltaTime));
+    // check if player pressed START game
+    if (GAME_STATE->actionState.startGame == KeyState::HOLD || GAME_STATE->actionState.startGame == KeyState::PRESS)
+    {
+        GAME_STATE->startGame();
+    }
+
+    if (!GAME_STATE->gameHasStarted())
+    {
+        return;
+    }
+
+    // check if player pressed RESTART game
+    if (GAME_STATE->actionState.restart == KeyState::HOLD || GAME_STATE->actionState.restart == KeyState::PRESS)
+    {
+        GAME_STATE->stopGame();
+    }
+    else
+    {
+        GAME_STATE->updateDeltaTime(static_cast<f32>(deltaTime));
+        // update entities
+        GAME_STATE->updatePlayer();
+        GAME_STATE->updateEnemies();
+        GAME_STATE->moveProjectiles();
+        GAME_STATE->updateFollowers();
+        GAME_STATE->updateHealthBars();
+    }
+
+    if (GAME_STATE->playerHasDied())
+    {
+        memset(GAME_STATE, 0, sizeof(*GAME_STATE));
+        gameInit();
+    }
 }
 
 extern "C"
 __declspec(dllexport)
-void gameRender(const GameLog& logger, const GameRenderer& renderer, const GameState& gameState, GameMemory& memory, const f64 deltaTime)
+void gameRender(const f64 deltaTime)
 {
-    renderer.beginBatch();
-    gameState.map.render(renderer.drawQuad);
-    gameState.renderSprites();
-    renderer.endBatch();
+    RENDERER->beginBatch();
+    GAME_STATE->map.render();
+    GAME_STATE->renderSprites();
+    RENDERER->endBatch();
 }

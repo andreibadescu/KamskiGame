@@ -1,6 +1,7 @@
 #pragma once
 
-#include <KamskiEngine/engine/deps/glm/vec2.hpp>
+#include <KamskiEngine/engine/deps/glm/glm.hpp>
+
 #include "Defines.h"
 
 class Map
@@ -10,7 +11,7 @@ public:
 
     void init(u32 sizeX, u32 sizeY);
     void load() const;
-    void render(void(*draw)(const glm::vec2& position, const glm::vec2& size, u32 texId)) const;
+    void render() const;
     [[nodiscard]]
     glm::vec2 getQuadSize() const;
 

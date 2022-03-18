@@ -1,42 +1,80 @@
 #pragma once
 
 #include "KamskiEngine/KamskiContainers.h"
+#include "KamskiEngine/KamskiIO.h"
 
 #include "Map.h"
 #include "Components.h"
-#include "InputState.h"
 
 class GameState
 {
 public:
+    struct
+    {
+        KeyState startGame;
+        KeyState walkUp;
+        KeyState walkDown;
+        KeyState walkLeft;
+        KeyState walkRight;
+        KeyState attack;
+        KeyState restart;
+    } actionState;
+    glm::vec2 cursorPosition;
     Map map;
-    InputState input;
 
     GameState() = delete;
 
-    static void linkTextureIdByTag(texture_id id, TextureTag tag);
+    bool playerHasDied() const;
+
+    void linkTextureIdByTag(texture_id id, TextureTag tag);
 
     [[nodiscard]]
-    static texture_id getTextureIdByTag(TextureTag tag);
+    texture_id getTextureIdByTag(TextureTag tag) const;
 
-    void setDrawFunction(void(*)(const glm::vec2& position, const glm::vec2& size, texture_id texId));
+    void addPlayer(Entity eId, glm::vec2 position, TextureTag tag,
+                   f32 movementSpeed, f32 healthPoints, f32 attackPoints);
 
-    void addPlayer(Entity eId, f32 x, f32 y, texture_id textureId, f32 movementSpeed, u32 healthPoints, u32 attackPoints);
+    void addEnemy(Entity eId, glm::vec2 position, TextureTag tag,
+                  f32 movementSpeed, f32 healthPoints, f32 attackPoints);
 
-    void addEnemy(Entity eId, f32 x, f32 y, texture_id textureId, f32 movementSpeed, u32 healthPoints, u32 attackPoints);
+    void updateFollowers();
 
-    void updatePlayer(f32 deltaTime);
+    void updateHealthBars();
 
-    void updateEnemies(f32 deltaTime);
+    void updatePlayer();
+
+    void updateEnemies();
 
     void renderSprites() const;
 
+    void startGame();
+
+    void stopGame();
+
+    void updateDeltaTime(f32 deltaTime);
+
+    void moveProjectiles();
+
+    bool gameHasStarted() const;
+
 private:
-    inline static texture_id textureIdsByTag[static_cast<u32>(TextureTag::COUNT)]{};
+    texture_id textureIdsByTag[static_cast<u32>(TextureTag::COUNT)];
+    bool gameOver;
+    f32 deltaTime;
 
     ComponentVector<SpriteComponent> sprites;
+    ComponentVector<SolidColorComponent> solidColors;
     ComponentVector<EntityComponent> players;
     ComponentVector<EntityComponent> enemies;
+    ComponentVector<ProjectileComponent> projectiles;
+    ComponentVector<FollowComponent> followers;
+    ComponentVector<HealthBarComponent> healthBars;
 
-    void(*draw)(const glm::vec2& position, const glm::vec2& size, texture_id texId);
+    static bool isCollision(const SpriteComponent& A, const SpriteComponent& B);
+
+    void updatePlayerPosition();
+
+    void updatePlayerHealth();
+
+    void updatePlayerAttack();
 };
