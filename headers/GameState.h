@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Defines.h"
 #include "KamskiEngine/KamskiContainers.h"
 #include "KamskiEngine/KamskiIO.h"
 
@@ -31,10 +32,10 @@ public:
     [[nodiscard]]
     texture_id getTextureIdByTag(TextureTag tag) const;
 
-    void addPlayer(Entity eId, glm::vec2 position, TextureTag tag,
+    void addPlayer(glm::vec2 position, TextureTag tag,
                    f32 movementSpeed, f32 healthPoints, f32 attackPoints);
 
-    void addEnemy(Entity eId, glm::vec2 position, TextureTag tag,
+    void addEnemy(glm::vec2 position, TextureTag tag,
                   f32 movementSpeed, f32 healthPoints, f32 attackPoints);
 
     void updateFollowers();
@@ -56,20 +57,19 @@ public:
     void moveProjectiles();
 
     bool gameHasStarted() const;
-
+    
+    void initECS();
 private:
+    
+    Entity playerEId;
     texture_id textureIdsByTag[static_cast<u32>(TextureTag::COUNT)];
     bool gameOver;
     f32 deltaTime;
-
-    ComponentVector<SpriteComponent> sprites;
-    ComponentVector<SolidColorComponent> solidColors;
-    ComponentVector<EntityComponent> players;
-    ComponentVector<EntityComponent> enemies;
-    ComponentVector<ProjectileComponent> projectiles;
-    ComponentVector<FollowComponent> followers;
-    ComponentVector<HealthBarComponent> healthBars;
-
+    
+    using KamskiComponentList = ComponentList<KAMSKI_COMPONENTS>;
+    
+    EntityRegistry<KamskiComponentList> entityRegistry;
+    
     static bool isCollision(const SpriteComponent& A, const SpriteComponent& B);
 
     void updatePlayerPosition();

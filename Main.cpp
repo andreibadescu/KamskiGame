@@ -16,20 +16,21 @@ extern "C"
 __declspec(dllexport)
 void gameInit()
 {
+    GAME_STATE->initECS();
     GAME_STATE->map.init(MAP_SIZE_X, MAP_SIZE_Y);
-
+    
     for (u8 i = 0; i < TEXTURE_COUNT; ++i)
     {
         const texture_id textureId = RENDERER->loadTexture(TEXTURE_PATHS[i]);
         GAME_STATE->linkTextureIdByTag(textureId, static_cast<TextureTag>(i));
     }
-
-    GAME_STATE->addPlayer(0, { 0.0f, 0.0f }, TextureTag::PLAYER, 0.5f, 200, 50);
-    GAME_STATE->addEnemy(2, {-0.5f, -0.5f}, TextureTag::ENEMY, 0.2f, 200, 25);
-    GAME_STATE->addEnemy(4, { 0.5f, -0.5f }, TextureTag::ENEMY, 0.2f, 200, 25);
-    GAME_STATE->addEnemy(6, { -0.5f, 0.5f }, TextureTag::ENEMY, 0.2f, 200, 25);
-    GAME_STATE->addEnemy(8, { 0.5f, 0.5f }, TextureTag::ENEMY, 0.2f, 200, 25);
-
+    
+    GAME_STATE->addPlayer({ 0.0f, 0.0f }, TextureTag::PLAYER, 0.5f, 200, 50);
+    GAME_STATE->addEnemy({-0.5f, -0.5f}, TextureTag::ENEMY, 0.2f, 200, 25);
+    GAME_STATE->addEnemy({ 0.5f, -0.5f }, TextureTag::ENEMY, 0.2f, 200, 25);
+    GAME_STATE->addEnemy({ -0.5f, 0.5f }, TextureTag::ENEMY, 0.2f, 200, 25);
+    GAME_STATE->addEnemy({ 0.5f, 0.5f }, TextureTag::ENEMY, 0.2f, 200, 25);
+    
     GAME_STATE->map.load();
     GAME_STATE->stopGame();
     GAME_STATE->updateFollowers();
@@ -61,12 +62,12 @@ void gameUpdate(f64& deltaTime)
     {
         GAME_STATE->startGame();
     }
-
+    
     if (!GAME_STATE->gameHasStarted())
     {
         return;
     }
-
+    
     // check if player pressed RESTART game
     if (GAME_STATE->actionState.restart == KeyState::HOLD || GAME_STATE->actionState.restart == KeyState::PRESS)
     {
@@ -82,7 +83,7 @@ void gameUpdate(f64& deltaTime)
         GAME_STATE->updateFollowers();
         GAME_STATE->updateHealthBars();
     }
-
+    
     if (GAME_STATE->playerHasDied())
     {
         memset(GAME_STATE, 0, sizeof(*GAME_STATE));

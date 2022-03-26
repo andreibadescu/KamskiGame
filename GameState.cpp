@@ -24,27 +24,31 @@ texture_id GameState::getTextureIdByTag(const TextureTag tag) const
 {
     return textureIdsByTag[static_cast<u32>(tag)];
 }
+
 void GameState::updateFollowers()
 {
-    Entity* markedForDeletion = static_cast<Entity*>(MEMORY->temporaryAlloc(followers.size() * sizeof(Entity)));
-    u32 markedCount = 0;
-
+    ComponentVector<FollowComponent>& followers = entityRegistry.getComponentVector<FollowComponent>();
+    ComponentVector<SpriteComponent>& sprites = entityRegistry.getComponentVector<SpriteComponent>();
+    ComponentVector<SolidColorComponent>& solidColors = entityRegistry.getComponentVector<SolidColorComponent>();
+    ComponentVector<HealthBarComponent>& healthBars = entityRegistry.getComponentVector<HealthBarComponent>();
+    ComponentVector<ProjectileComponent>& projectiles = entityRegistry.getComponentVector<ProjectileComponent>();
+    
     for (const Entity followerId: followers.iterateEntities())
     {
         const FollowComponent& follower = followers.getComponent(followerId);
         glm::vec2 toFollowPosition = {};
 
-        if (sprites.hasComponent(follower.toFollowId))
+        if (entityRegistry.hasComponent<SpriteComponent>(follower.toFollowId))
         {
             toFollowPosition = sprites.getComponent(follower.toFollowId).position;
         }
-        else if (solidColors.hasComponent(follower.toFollowId))
+        else if (entityRegistry.hasComponent<SolidColorComponent>(follower.toFollowId))
         {
             toFollowPosition = solidColors.getComponent(follower.toFollowId).position;
         }
         else
         {
-            markedForDeletion[markedCount++] = followerId;
+            entityRegistry.markEntityForDeletion(followerId);
             continue;
         }
 
@@ -58,78 +62,69 @@ void GameState::updateFollowers()
             // Handle following sprites
         }
     }
-
-    for (u32 i = 0; i < markedCount; i++)
-    {
-        sprites.removeComponent(markedForDeletion[i]);
-        enemies.removeComponent(markedForDeletion[i]);
-        projectiles.removeComponent(markedForDeletion[i]);
-        healthBars.removeComponent(markedForDeletion[i]);
-        followers.removeComponent(markedForDeletion[i]);
-        solidColors.removeComponent(markedForDeletion[i]);
-    }
+    entityRegistry.removeMarkedEntities();
 }
 
 void GameState::updateHealthBars()
 {
-    for (const Entity healthBarId: healthBars.iterateEntities())
+    for (const Entity healthBarId: 
+         entityRegistry.iterateEntities<HealthBarComponent,SolidColorComponent, FollowComponent>())
     {
-        HealthBarComponent& healthBar = healthBars.getComponent(healthBarId);
-        SolidColorComponent& solidColor = solidColors.getComponent(healthBarId);
-        FollowComponent& follower = followers.getComponent(healthBarId);
-        // TODO: merge players and enemies so that this shit vvv can be general
-
-        f32 healthPoints = 0;
-        if (players.hasComponent(follower.toFollowId))
-        {
-            healthPoints = players.getComponent(follower.toFollowId).healthPoints;
-        }
-        else if (enemies.hasComponent(follower.toFollowId))
-        {
-            healthPoints = enemies.getComponent(follower.toFollowId).healthPoints;
-        }
-        else
-        {
-            continue;
-        }
-
+        HealthBarComponent& healthBar = entityRegistry.getComponent<HealthBarComponent>(healthBarId);
+        SolidColorComponent& solidColor = entityRegistry.getComponent<SolidColorComponent>(healthBarId);
+        FollowComponent& follower = entityRegistry.getComponent<FollowComponent>(healthBarId);
+        
+        f32 healthPoints = entityRegistry.getComponent<EntityComponent>(follower.toFollowId).healthPoints;
+        
         solidColor.size.x = healthBar.maxSize.x * healthPoints / healthBar.maxHealth;
     }
 }
 
-void GameState::addPlayer(const Entity eId, const glm::vec2 position, const TextureTag tag,
+void GameState::addPlayer(const glm::vec2 position, const TextureTag tag,
                           const f32 movementSpeed, const f32 healthPoints, const f32 attackPoints)
 {
-    sprites.addComponent(eId, position, TEXTURE_SIZES[static_cast<u32>(tag)], getTextureIdByTag(tag));
-    players.addComponent(eId, movementSpeed, healthPoints, attackPoints);
-    solidColors.addComponent(eId + 1, SolidColorComponent{{0, 0}, {TEXTURE_SIZES[static_cast<u32>(tag)].x, 0.02f}, {0.0f, 1.0f, 0.0f, 1.0f}});
-    followers.addComponent(eId + 1, FollowComponent{eId, {0, TEXTURE_SIZES[static_cast<u32>(tag)].y / 3.5f}});
-    healthBars.addComponent(eId + 1, HealthBarComponent{{TEXTURE_SIZES[static_cast<u32>(tag)].x, 0.05f}, healthPoints});
+    Entity eId = playerEId = entityRegistry.createEntity();
+    
+    entityRegistry.addComponent<SpriteComponent>(eId, position, TEXTURE_SIZES[static_cast<u32>(tag)], getTextureIdByTag(tag));
+    entityRegistry.addComponent<EntityComponent>(eId, movementSpeed, healthPoints, attackPoints);
+    entityRegistry.addComponent<TagComponent>(eId, TagComponent::PLAYER);
+    Entity healthbarEId = entityRegistry.createEntity();
+    
+    entityRegistry.addComponent<SolidColorComponent>(healthbarEId, SolidColorComponent{{0, 0}, {TEXTURE_SIZES[static_cast<u32>(tag)].x, 0.02f}, {0.0f, 1.0f, 0.0f, 1.0f}});
+    entityRegistry.addComponent<FollowComponent>(healthbarEId, FollowComponent{eId, {0, TEXTURE_SIZES[static_cast<u32>(tag)].y / 3.5f}});
+    entityRegistry.addComponent<HealthBarComponent>(healthbarEId, HealthBarComponent{{TEXTURE_SIZES[static_cast<u32>(tag)].x, 0.05f}, healthPoints});
+    
 }
 
-void GameState::addEnemy(const Entity eId, const glm::vec2 position, const TextureTag tag,
+void GameState::addEnemy(const glm::vec2 position, const TextureTag tag,
                          const f32 movementSpeed, const f32 healthPoints, const f32 attackPoints)
 {
-    sprites.addComponent(eId, position, TEXTURE_SIZES[static_cast<u32>(tag)], getTextureIdByTag(tag));
-    enemies.addComponent(eId, movementSpeed, healthPoints, attackPoints);
-    solidColors.addComponent(eId + 1, SolidColorComponent{{0, 0}, {TEXTURE_SIZES[static_cast<u32>(tag)].x, 0.02f}, {1.0f, 0.0f, 0.0f, 1.0f}});
-    followers.addComponent(eId + 1, FollowComponent{eId, {0, TEXTURE_SIZES[static_cast<u32>(tag)].y / 2.0f}});
-    healthBars.addComponent(eId + 1, HealthBarComponent{{TEXTURE_SIZES[static_cast<u32>(tag)].x, 0.05f}, healthPoints});
+    Entity eId = entityRegistry.createEntity();
+    
+    entityRegistry.addComponent<SpriteComponent>(eId, position, TEXTURE_SIZES[static_cast<u32>(tag)], getTextureIdByTag(tag));
+    entityRegistry.addComponent<EntityComponent>(eId, movementSpeed, healthPoints, attackPoints);
+    entityRegistry.addComponent<TagComponent>(eId, TagComponent::ENEMY);
+    
+    Entity healthBarId = entityRegistry.createEntity();
+    
+    entityRegistry.addComponent<SolidColorComponent>(healthBarId, SolidColorComponent{{0, 0}, {TEXTURE_SIZES[static_cast<u32>(tag)].x, 0.02f}, {1.0f, 0.0f, 0.0f, 1.0f}});
+    entityRegistry.addComponent<FollowComponent>(healthBarId, FollowComponent{eId, {0, TEXTURE_SIZES[static_cast<u32>(tag)].y / 2.0f}});
+    entityRegistry.addComponent<HealthBarComponent>(healthBarId, HealthBarComponent{{TEXTURE_SIZES[static_cast<u32>(tag)].x, 0.05f}, healthPoints});
 }
 
 void GameState::updatePlayerPosition()
 {
-    SpriteComponent& playerSprite = sprites.getComponent(PLAYER_ID);
-    EntityComponent& playerEntity = players.getComponent(PLAYER_ID);
+    SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
+    EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
 
     //const glm::vec2 oldPosition = playerSprite.position;
     const f32 distance = deltaTime * playerEntity.movementSpeed;
-
+    
     const bool isWalkUp = (actionState.walkUp == KeyState::HOLD || actionState.walkUp == KeyState::PRESS);
     const bool isWalkDown = (actionState.walkDown == KeyState::HOLD || actionState.walkDown == KeyState::PRESS);
     const bool isWalkLeft = (actionState.walkLeft == KeyState::HOLD || actionState.walkLeft == KeyState::PRESS);
     const bool isWalkRight = (actionState.walkRight == KeyState::HOLD || actionState.walkRight == KeyState::PRESS);
-
+    
     const bool upXorDown = isWalkUp ^ isWalkDown;
     const bool leftXorRight = isWalkLeft ^ isWalkRight;
 
@@ -203,14 +198,16 @@ void GameState::updatePlayerPosition()
 
 void GameState::updatePlayerHealth()
 {
-    const SpriteComponent& playerSprite = sprites.getComponent(PLAYER_ID);
-    EntityComponent& playerEntity = players.getComponent(PLAYER_ID);
+    const SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
+    EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
 
-    for (const auto& enemyId: enemies.iterateEntities())
+    for (const auto& enemyId: entityRegistry.iterateEntities<TagComponent, SpriteComponent, EntityComponent>())
     {
-        const SpriteComponent& enemySprite = sprites.getComponent(enemyId);
-        const EntityComponent& enemyEntity = enemies.getComponent(enemyId);
-
+        if(entityRegistry.getComponent<TagComponent>(enemyId) == TagComponent::PLAYER)
+            continue;
+        const SpriteComponent& enemySprite = entityRegistry.getComponent<SpriteComponent>(enemyId);
+        const EntityComponent& enemyEntity = entityRegistry.getComponent<EntityComponent>(enemyId); 
+        
         if (isCollision(playerSprite, enemySprite))
         {
             playerEntity.healthPoints -= enemyEntity.attackPoints * deltaTime;
@@ -225,19 +222,21 @@ void GameState::updatePlayerHealth()
 
 void GameState::updatePlayerAttack()
 {
-    if (actionState.attack != KeyState::PRESS)
+    if (actionState.attack != KeyState::PRESS && actionState.attack != KeyState::HOLD)
     {
         return;
     }
-    static Entity projectileId = 100;
-    const glm::vec2 directionVector = glm::normalize(cursorPosition - sprites.getComponent(PLAYER_ID).position);
-    projectiles.addComponent(projectileId, directionVector, 0.9f, static_cast<Entity>(PLAYER_ID));
-    sprites.addComponent(projectileId,
-                         sprites.getComponent(PLAYER_ID).position,
-                         TEXTURE_SIZES[static_cast<u32>(TextureTag::PROJECTILE)],
-                         getTextureIdByTag(TextureTag::PROJECTILE),
-                         atan2(directionVector.y, directionVector.x) - 3.14159f / 2.0f);
-    ++projectileId;
+    
+    Entity projectileId = entityRegistry.createEntity();
+    
+    const glm::vec2 directionVector = glm::normalize(cursorPosition - entityRegistry.getComponent<SpriteComponent>(playerEId).position);
+    entityRegistry.addComponent<ProjectileComponent>(projectileId, directionVector, 0.05f, playerEId);
+    entityRegistry.addComponent<SpriteComponent>(projectileId,
+                                                 entityRegistry.getComponent<SpriteComponent>(playerEId).position,
+                                                 TEXTURE_SIZES[static_cast<u32>(TextureTag::PROJECTILE)],
+                                                 getTextureIdByTag(TextureTag::PROJECTILE),
+                                                 atan2(directionVector.y, directionVector.x) - 3.14159f / 2.0f);
+    logInfo("Proj Count = %u", entityRegistry.getComponentVector<ProjectileComponent>().size());
 }
 
 void GameState::updatePlayer()
@@ -247,39 +246,57 @@ void GameState::updatePlayer()
     updatePlayerHealth();
 }
 
+void GameState::initECS()
+{
+    entityRegistry.initEntityQueue();
+}
+
 /* Custom collision */
 void GameState::updateEnemies()
 {
-    const SpriteComponent& playerSprite = sprites.getComponent(PLAYER_ID);
-    for (const auto& enemyEntityId: enemies.iterateEntities())
+    const SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
+    
+    for (const auto& enemyEntityId: entityRegistry.iterateEntities<SpriteComponent, EntityComponent, TagComponent>())
     {
-        SpriteComponent& enemySprite = sprites.getComponent(enemyEntityId);
-        EntityComponent& enemyEntity = enemies.getComponent(enemyEntityId);
+        if(entityRegistry.getComponent<TagComponent>(enemyEntityId) == TagComponent::PLAYER)
+        {
+            continue;
+        }
+        SpriteComponent& enemySprite = entityRegistry.getComponent<SpriteComponent>(enemyEntityId);
+        EntityComponent& enemyEntity = entityRegistry.getComponent<EntityComponent>(enemyEntityId);
         const glm::vec2 enemyVector{
             enemySprite.position.x - playerSprite.position.x,
             enemySprite.position.y - playerSprite.position.y
         };
+        
         const glm::vec2 normalizedEnemyVector = normalize(enemyVector);
         const f32 distance = deltaTime * enemyEntity.movementSpeed;
-
+        
         const glm::vec2 newPosition{
             enemySprite.position.x - normalizedEnemyVector.x * distance,
             enemySprite.position.y - normalizedEnemyVector.y * distance
         };
         // detect collision
         bool bCollision = false;
-        for (const auto& otherEnemeyEntityId: enemies.iterateEntities())
+        
+        for (const auto& otherEnemeyEntityId: entityRegistry.iterateEntities<SpriteComponent, EntityComponent, TagComponent>())
         {
-            if (otherEnemeyEntityId == enemyEntityId)
+            
+            if (otherEnemeyEntityId == enemyEntityId ||
+                entityRegistry.getComponent<TagComponent>(otherEnemeyEntityId) == TagComponent::PLAYER)
             {
                 continue;
             }
-            const SpriteComponent& otherEnemySprite = sprites.getComponent(otherEnemeyEntityId);
+            
+            const SpriteComponent& otherEnemySprite = entityRegistry.getComponent<SpriteComponent>(otherEnemeyEntityId);
+            
             const glm::vec2 vectorBetween{
                 otherEnemySprite.position.x - newPosition.x,
                 otherEnemySprite.position.y - newPosition.y
             };
+            
             const f32 distanceBetween = glm::sqrt(vectorBetween.x * vectorBetween.x + vectorBetween.y * vectorBetween.y);
+            
             if (distanceBetween <= map.getQuadSize().x)
             {
                 bCollision = true;
@@ -361,20 +378,22 @@ void GameState::updateEnemies()
 void GameState::renderSprites() const
 {
     u32 cnt = 0;
+    ComponentVector<SpriteComponent>& sprites = entityRegistry.getComponentVector<SpriteComponent>();
     Entity* const sortedEntityIdsArray = static_cast<Entity*>(MEMORY->temporaryAlloc(sprites.size() * sizeof(Entity)));
+    
     for (const Entity entityId: sprites.iterateEntities())
     {
         sortedEntityIdsArray[cnt++] = entityId;
     }
-
-    std::sort(sortedEntityIdsArray, sortedEntityIdsArray + cnt, [this](const auto A, const auto B)
+    
+    std::sort(sortedEntityIdsArray, sortedEntityIdsArray + cnt, [this](const Entity A, const Entity B)
     {
-        const f32 aY = sprites.getComponent(A).position.y;
-        const f32 bY = sprites.getComponent(B).position.y;
+        const f32 aY = entityRegistry.getComponent<SpriteComponent>(A).position.y;
+        const f32 bY = entityRegistry.getComponent<SpriteComponent>(B).position.y;
         return aY > bY;
     });
-
-    const SpriteComponent& playerSprite = sprites.getComponent(PLAYER_ID);
+    
+    const SpriteComponent& playerSprite = sprites.getComponent(playerEId);
     for (u32 i = 0; i < cnt; ++i)
     {
         SpriteComponent sprite = sprites.getComponent(sortedEntityIdsArray[i]);
@@ -406,8 +425,8 @@ void GameState::renderSprites() const
     // Uncomment this if you want the player to be rendered over every other sprite
     //const SpriteComponent playerSprite = sprites.getComponent(PLAYER_ID);
     //draw({ playerSprite.x, playerSprite.y }, map.getQuadSize() *= 2, playerSprite.textureId);
-
-    for (const SolidColorComponent solidColor: solidColors.iterateComponents())
+    
+    for (SolidColorComponent& solidColor: entityRegistry.iterateComponents<SolidColorComponent>())
     {
         RENDERER->drawColoredQuad({ solidColor.position, solidColor.position.y }, solidColor.size, solidColor.color, solidColor.rotation);
     }
@@ -434,51 +453,45 @@ void GameState::moveProjectiles()
     // Problema era ca stergeai din vector in timp ce-l iterai
     // iar asta nu iese bine niciodata
     // quick fix:
-    Entity* markedForDeletion =
-        static_cast<Entity*>(MEMORY->temporaryAlloc((enemies.size() + projectiles.size()) * sizeof(Entity)));
-    u32 markedCount = 0;
 
-    for (const auto& projectileId : projectiles.iterateEntities())
+    for (const auto& projectileId : entityRegistry.iterateEntities<SpriteComponent, ProjectileComponent>())
     {
-        SpriteComponent& projectileSprite = sprites.getComponent(projectileId);
-        ProjectileComponent& projectile = projectiles.getComponent(projectileId);
+        SpriteComponent& projectileSprite = entityRegistry.getComponent<SpriteComponent>(projectileId);
+        ProjectileComponent& projectile = entityRegistry.getComponent<ProjectileComponent>(projectileId);
         projectileSprite.position += projectile.direction * projectile.speed * deltaTime;
+        
         if (projectileSprite.position.x <= -1.0f || projectileSprite.position.x >= 1.0f ||
             projectileSprite.position.y <= -1.0f || projectileSprite.position.y >= 1.0f)
         {
-            markedForDeletion[markedCount++] = projectileId;
+            entityRegistry.markEntityForDeletion(projectileId);
             continue;
         }
-        for (const auto& enemyId: enemies.iterateEntities())
+        
+        for (const auto& enemyId: entityRegistry.iterateEntities<SpriteComponent, EntityComponent, TagComponent>())
         {
-            const SpriteComponent& enemySprite = sprites.getComponent(enemyId);
+            if(entityRegistry.getComponent<TagComponent>(enemyId) == entityRegistry.getComponent<TagComponent>(projectile.shooterId))
+                continue;
+            
+            const SpriteComponent& enemySprite = entityRegistry.getComponent<SpriteComponent>(enemyId);
             const f32 distanceBetween = glm::distance(enemySprite.position, projectileSprite.position);
             if (distanceBetween <= min(enemySprite.size.x, enemySprite.size.y) / 2)
             //if (isCollision(enemySprite, projectileSprite))
             {
+                Entity shooterId = entityRegistry.getComponent<ProjectileComponent>(projectileId).shooterId;
+                
                 // subtract shooter's attack from enemy's health
-                enemies.getComponent(enemyId).healthPoints -=
-                    players.getComponent(projectiles.getComponent(projectileId).shooterId).attackPoints;
-                if (enemies.getComponent(enemyId).healthPoints <= 0.0f)
+                entityRegistry.getComponent<EntityComponent>(enemyId).healthPoints -=
+                    entityRegistry.getComponent<EntityComponent>(shooterId).attackPoints;
+                if (entityRegistry.getComponent<EntityComponent>(enemyId).healthPoints <= 0.0f)
                 {
-                    markedForDeletion[markedCount++] = enemyId;
-                    logInfo("Enemy was killed! - %d", enemyId);
+                    entityRegistry.markEntityForDeletion(enemyId);
                 }
                 // delete projectile
-                markedForDeletion[markedCount++] = projectileId;
+                entityRegistry.markEntityForDeletion(projectileId);
             }
         }
     }
-
-    for (u32 i = 0; i < markedCount; i++)
-    {
-        sprites.removeComponent(markedForDeletion[i]);
-        enemies.removeComponent(markedForDeletion[i]);
-        projectiles.removeComponent(markedForDeletion[i]);
-        healthBars.removeComponent(markedForDeletion[i]);
-        followers.removeComponent(markedForDeletion[i]);
-        solidColors.removeComponent(markedForDeletion[i]);
-    }
+    entityRegistry.removeMarkedEntities();
 }
 
 bool GameState::gameHasStarted() const

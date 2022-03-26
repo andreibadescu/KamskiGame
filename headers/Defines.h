@@ -71,3 +71,5 @@ inline constexpr u32 TEXTURE_COUNT = ARRAY_COUNT(TEXTURE_PATHS);
 
 #undef TAG
 #undef ASSET
+#define KASMKI_MAX_ENTITY_COUNT 20000
+#define KAMSKI_COMPONENTS SpriteComponent, TagComponent, SolidColorComponent, FollowComponent, EntityComponent, ProjectileComponent, HealthBarComponent

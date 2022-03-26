@@ -11,6 +11,12 @@
     //glm::vec2 rotation;
 //};
 
+enum class TagComponent
+{
+    PLAYER,
+    ENEMY
+};
+
 struct SpriteComponent
 {
     glm::vec2 position;
