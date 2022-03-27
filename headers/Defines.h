@@ -42,11 +42,10 @@ constexpr glm::vec2 TEXTURE_SIZES[] = {
     [TAG(PROJECTILE)] = {0.06f, 0.13f}
 };
 
-#define PLAYER_ID 0
-
 inline constexpr u32 MAP_SIZE = 20;
 inline constexpr u32 MAP_SIZE_Y = MAP_SIZE;
 inline constexpr u32 MAP_SIZE_X = MAP_SIZE;
+inline constexpr f32 PI = 3.14159265f;
 
 //inline constexpr u32 MAX_NUMBER_OF_PLAYERS = 2;
 
@@ -71,3 +70,5 @@ inline constexpr u32 TEXTURE_COUNT = ARRAY_COUNT(TEXTURE_PATHS);
 
 #undef TAG
 #undef ASSET
+#define KASMKI_MAX_ENTITY_COUNT 20000
+#define KAMSKI_COMPONENTS SpriteComponent, TagComponent, SolidColorComponent, FollowComponent, EntityComponent, ProjectileComponent, HealthBarComponent
