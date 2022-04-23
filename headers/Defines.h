@@ -21,6 +21,7 @@ enum class TextureTag: u8
     ENEMY,
     PLAYER,
     PROJECTILE,
+    CIRCLE,
     /* MAP TILES, RATIO ALWAYS 1:1 SO ADD THEM ONLY AFTER THIS COMMENT */
     FLOOR,
     WALL,
@@ -37,9 +38,10 @@ enum class TextureTag: u8
 
 #define TAG(TEXTURE) ((u32)TextureTag:: TEXTURE)
 constexpr glm::vec2 TEXTURE_SIZES[] = {
-    [TAG(ENEMY)]      = {0.25f, 0.25f},
-    [TAG(PLAYER)]     = {0.125f, 0.25f},
-    [TAG(PROJECTILE)] = {0.06f, 0.13f}
+    [TAG(ENEMY)]      = {250.0f, 250.0f},
+    [TAG(PLAYER)]     = {125.0f, 250.0f},
+    [TAG(PROJECTILE)] = {60.0f, 130.0f},
+    [TAG(CIRCLE)] = {100.0f, 100.0f}
 };
 
 inline constexpr u32 MAP_SIZE = 20;
@@ -64,7 +66,8 @@ inline const char* TEXTURE_PATHS[] = {
     [TAG(WALL_CORNER_TOP_RIGHT)]    = ASSET("wall_corner_top_right.png"),
     [TAG(ENEMY)]                    = ASSET("enemy.png"),
     [TAG(PLAYER)]                   = ASSET("player.png"),
-    [TAG(PROJECTILE)]               = ASSET("weapon_knife.png")
+    [TAG(PROJECTILE)]               = ASSET("weapon_knife.png"),
+    [TAG(CIRCLE)]               = ASSET("circle.png")
 };
 inline constexpr u32 TEXTURE_COUNT = ARRAY_COUNT(TEXTURE_PATHS);
 

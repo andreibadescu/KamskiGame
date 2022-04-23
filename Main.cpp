@@ -25,11 +25,11 @@ void gameInit()
         GAME_STATE->linkTextureIdByTag(textureId, static_cast<TextureTag>(i));
     }
 
-    GAME_STATE->addPlayer({ 0.0f, 0.0f }, TextureTag::PLAYER, 0.5f, 200, 50);
-    GAME_STATE->addEnemy({-0.5f, -0.5f}, TextureTag::ENEMY, 0.2f, 200, 25);
-    GAME_STATE->addEnemy({ 0.5f, -0.5f }, TextureTag::ENEMY, 0.2f, 200, 25);
-    GAME_STATE->addEnemy({ -0.5f, 0.5f }, TextureTag::ENEMY, 0.2f, 200, 25);
-    GAME_STATE->addEnemy({ 0.5f, 0.5f }, TextureTag::ENEMY, 0.2f, 200, 25);
+    GAME_STATE->addPlayer({ 0.0f, 0.0f }, TextureTag::PLAYER, 500.0f, 200, 50);
+    GAME_STATE->addEnemy({-500.0f, -500.0f}, TextureTag::ENEMY, 200.0f, 200, 25);
+    GAME_STATE->addEnemy({ 500.0f, -500.0f }, TextureTag::ENEMY, 200.0f, 200, 25);
+    GAME_STATE->addEnemy({ -500.0f, 500.0f }, TextureTag::ENEMY, 200.0f, 200, 25);
+    GAME_STATE->addEnemy({ 500.0f, 500.0f }, TextureTag::ENEMY, 200.0f, 200, 25);
 
     GAME_STATE->map.load();
     GAME_STATE->stopGame();
@@ -47,6 +47,9 @@ void gameInput(const GameIO& input)
     GAME_STATE->actionState.walkLeft = input.getKeyState('A');
     GAME_STATE->actionState.walkDown = input.getKeyState('S');
     GAME_STATE->actionState.walkRight = input.getKeyState('D');
+    GAME_STATE->actionState.zoomIn = input.getKeyState('Q');
+    GAME_STATE->actionState.zoomOut = input.getKeyState('E');
+    GAME_STATE->actionState.pauseGame = input.getKeyState('P');
     GAME_STATE->actionState.attack = input.getSpecialKeyState(SpecialKeyCode::SPACE);
     GAME_STATE->actionState.restart = input.getSpecialKeyState(SpecialKeyCode::RETURN);
     // set cursor position
@@ -67,7 +70,13 @@ void gameUpdate(f64& deltaTime)
     {
         return;
     }
+    static bool paused = false;
+    if (GAME_STATE->actionState.pauseGame == KeyState::PRESS)
+    {
+        paused = !paused;
+    }
 
+    deltaTime = deltaTime * (f64)(!paused);
     // check if player pressed RESTART game
     if (GAME_STATE->actionState.restart == KeyState::HOLD || GAME_STATE->actionState.restart == KeyState::PRESS)
     {
@@ -95,7 +104,8 @@ extern "C"
 __declspec(dllexport)
 void gameRender(const f64 deltaTime)
 {
-    RENDERER->beginBatch();
+    glm::vec3 cam = GAME_STATE->getCamera();
+    RENDERER->beginBatch(cam.x, cam.y, cam.z);
     GAME_STATE->map.render();
     GAME_STATE->renderSprites();
     RENDERER->endBatch();
