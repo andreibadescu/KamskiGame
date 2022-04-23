@@ -78,20 +78,30 @@ void GameState::updateHealthBars()
     }
 }
 
+glm::vec3 GameState::getCamera() const
+{
+    return camera;
+}
+
 void GameState::addPlayer(const glm::vec2 position, const TextureTag tag,
                           const f32 movementSpeed, const f32 healthPoints, const f32 attackPoints)
 {
-    playerEId = entityRegistry.createEntity();
-    logInfo("%u", playerEId);
 
-    entityRegistry.addComponent<SpriteComponent>(playerEId, position, TEXTURE_SIZES[static_cast<u32>(tag)], getTextureIdByTag(tag));
-    entityRegistry.addComponent<EntityComponent>(playerEId, movementSpeed, healthPoints, attackPoints);
-    entityRegistry.addComponent<TagComponent>(playerEId, TagComponent::PLAYER);
-    const Entity healthbarEId = entityRegistry.createEntity();
+    const Entity eId = entityRegistry.createEntity();
+    playerEId = eId;
+    
+    camera.z = 1;
+    camera.x = position.x;
+    camera.y = position.y;
 
-    entityRegistry.addComponent<SolidColorComponent>(healthbarEId, SolidColorComponent{{0, 0}, {TEXTURE_SIZES[static_cast<u32>(tag)].x, 0.02f}, {0.0f, 1.0f, 0.0f, 1.0f}});
+    entityRegistry.addComponent<SpriteComponent>(eId, position, TEXTURE_SIZES[static_cast<u32>(tag)], getTextureIdByTag(tag));
+    entityRegistry.addComponent<EntityComponent>(eId, movementSpeed, healthPoints, attackPoints);
+    entityRegistry.addComponent<TagComponent>(eId, TagComponent::PLAYER);
+    Entity healthbarEId = entityRegistry.createEntity();
+
+    entityRegistry.addComponent<SolidColorComponent>(healthbarEId, SolidColorComponent{{0, 0}, {TEXTURE_SIZES[static_cast<u32>(tag)].x, 20.0f}, {0.0f, 1.0f, 0.0f, 1.0f}});
     entityRegistry.addComponent<FollowComponent>(healthbarEId, FollowComponent{ playerEId, {0, TEXTURE_SIZES[static_cast<u32>(tag)].y / 3.5f}});
-    entityRegistry.addComponent<HealthBarComponent>(healthbarEId, HealthBarComponent{{TEXTURE_SIZES[static_cast<u32>(tag)].x, 0.05f}, healthPoints});
+    entityRegistry.addComponent<HealthBarComponent>(healthbarEId, HealthBarComponent{{TEXTURE_SIZES[static_cast<u32>(tag)].x, 50.0f}, healthPoints});
 }
 
 void GameState::addEnemy(const glm::vec2 position, const TextureTag tag,
@@ -105,15 +115,25 @@ void GameState::addEnemy(const glm::vec2 position, const TextureTag tag,
 
     const Entity healthBarId = entityRegistry.createEntity();
 
-    entityRegistry.addComponent<SolidColorComponent>(healthBarId, SolidColorComponent{{0, 0}, {TEXTURE_SIZES[static_cast<u32>(tag)].x, 0.02f}, {1.0f, 0.0f, 0.0f, 1.0f}});
+    entityRegistry.addComponent<SolidColorComponent>(healthBarId, SolidColorComponent{{0, 0}, {TEXTURE_SIZES[static_cast<u32>(tag)].x, 20.0f}, {1.0f, 0.0f, 0.0f, 1.0f}});
     entityRegistry.addComponent<FollowComponent>(healthBarId, FollowComponent{eId, {0, TEXTURE_SIZES[static_cast<u32>(tag)].y / 2.0f}});
-    entityRegistry.addComponent<HealthBarComponent>(healthBarId, HealthBarComponent{{TEXTURE_SIZES[static_cast<u32>(tag)].x, 0.05f}, healthPoints});
+    entityRegistry.addComponent<HealthBarComponent>(healthBarId, HealthBarComponent{{TEXTURE_SIZES[static_cast<u32>(tag)].x, 50.0f}, healthPoints});
 }
 
 void GameState::updatePlayerPosition()
 {
     SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
     EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
+
+    if (actionState.zoomIn == KeyState::HOLD)
+    {
+        camera.z += deltaTime;
+    }
+
+    if (actionState.zoomOut == KeyState::HOLD)
+    {
+        camera.z -= deltaTime;
+    }
 
     //const glm::vec2 oldPosition = playerSprite.position;
     const f32 distance = deltaTime * playerEntity.movementSpeed;
@@ -151,6 +171,7 @@ void GameState::updatePlayerPosition()
             }
         }
     }
+
     if (leftXorRight)
     {
         if (isWalkLeft)
@@ -178,10 +199,13 @@ void GameState::updatePlayerPosition()
         }
     }
 
-    playerSprite.position.x = max(playerSprite.position.x, -1.0f + map.getQuadSize().x * 1.7f);
-    playerSprite.position.x = min(playerSprite.position.x, 1.0f - map.getQuadSize().x * 1.7f);
-    playerSprite.position.y = max(playerSprite.position.y, -1.0f + map.getQuadSize().y * 2.1f);
-    playerSprite.position.y = min(playerSprite.position.y, 1.0f - map.getQuadSize().y * 1.5f);
+    playerSprite.position.x = max(playerSprite.position.x, -SCREEN_SIZE_WORLD_COORDS + map.getQuadSize().x * 1.7f);
+    playerSprite.position.x = min(playerSprite.position.x, SCREEN_SIZE_WORLD_COORDS - map.getQuadSize().x * 1.7f);
+    playerSprite.position.y = max(playerSprite.position.y, -SCREEN_SIZE_WORLD_COORDS + map.getQuadSize().y * 2.1f);
+    playerSprite.position.y = min(playerSprite.position.y, SCREEN_SIZE_WORLD_COORDS - map.getQuadSize().y * 1.5f);
+    
+    camera.x = playerSprite.position.x;
+    camera.y = playerSprite.position.y;
 
     //for (const auto& enemyId : enemies.iterateEntities())
     //{
@@ -220,15 +244,17 @@ void GameState::updatePlayerHealth()
 
 void GameState::updatePlayerAttack()
 {
-    if (actionState.attack != KeyState::PRESS)
+    if (actionState.attack != KeyState::PRESS && actionState.attack != KeyState::HOLD)
     {
         return;
     }
 
     const Entity projectileId = entityRegistry.createEntity();
-
-    const glm::vec2 directionVector = glm::normalize(cursorPosition - entityRegistry.getComponent<SpriteComponent>(playerEId).position);
-    entityRegistry.addComponent<ProjectileComponent>(projectileId, directionVector, 0.9f, playerEId);
+    
+    // cursorPosition is not affected by the camera position in calculations.
+    //To convert cursorPosition to actual world Position you have to add the camera position to it
+    const glm::vec2 directionVector = glm::normalize(cursorPosition + glm::vec2{camera.x, camera.y} - entityRegistry.getComponent<SpriteComponent>(playerEId).position);
+    entityRegistry.addComponent<ProjectileComponent>(projectileId, directionVector, 400.0f, playerEId);
     entityRegistry.addComponent<SpriteComponent>(projectileId,
                                                  entityRegistry.getComponent<SpriteComponent>(playerEId).position,
                                                  TEXTURE_SIZES[static_cast<u32>(TextureTag::PROJECTILE)],
@@ -421,7 +447,8 @@ void GameState::renderSprites() const
                 sprite.size.x = abs(sprite.size.x);
             }
         }
-        RENDERER->drawTexturedQuad({ sprite.position, sprite.position.y }, sprite.size, sprite.textureId, sprite.rotation);
+        RENDERER->drawText(glm::vec3{sprite.position, 0.1} + glm::vec3{0, 100, 0}, 320, "GOLEM");
+        RENDERER->drawTexturedQuad({ sprite.position, 0.1 }, sprite.size, sprite.textureId, sprite.rotation);
     }
 
     // Uncomment this if you want the player to be rendered over every other sprite
@@ -457,8 +484,8 @@ void GameState::moveProjectiles()
         ProjectileComponent& projectile = entityRegistry.getComponent<ProjectileComponent>(projectileId);
         projectileSprite.position += projectile.direction * projectile.speed * deltaTime;
 
-        if (projectileSprite.position.x <= -1.0f || projectileSprite.position.x >= 1.0f ||
-            projectileSprite.position.y <= -1.0f || projectileSprite.position.y >= 1.0f)
+        if (projectileSprite.position.x <= -SCREEN_SIZE_WORLD_COORDS || projectileSprite.position.x >= SCREEN_SIZE_WORLD_COORDS ||
+            projectileSprite.position.y <= -SCREEN_SIZE_WORLD_COORDS || projectileSprite.position.y >= SCREEN_SIZE_WORLD_COORDS )
         {
             entityRegistry.markEntityForDeletion(projectileId);
             continue;

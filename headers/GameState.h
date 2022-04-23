@@ -19,6 +19,9 @@ public:
         KeyState walkRight;
         KeyState attack;
         KeyState restart;
+        KeyState zoomIn;
+        KeyState zoomOut;
+        KeyState pauseGame;
     } actionState;
     glm::vec2 cursorPosition;
     Map map;
@@ -62,13 +65,15 @@ public:
 
     EntityRegistry<ComponentList<KAMSKI_COMPONENTS>>& getECS();
 
+    glm::vec3 getCamera() const;
+
 private:
     Entity playerEId;
     texture_id textureIdsByTag[static_cast<u32>(TextureTag::COUNT)];
     bool gameOver;
     f32 deltaTime;
-
     EntityRegistry<ComponentList<KAMSKI_COMPONENTS>> entityRegistry;
+    glm::vec3 camera;
 
     static bool isCollision(const SpriteComponent& A, const SpriteComponent& B);
 

@@ -5,9 +5,8 @@ void Map::init(const u32 sizeX, const u32 sizeY)
 {
     map.size.x = sizeX;
     map.size.y = sizeY;
-    // TODO: Use LinearAllocator instead of new
-    map.tiles = new texture_id[sizeY * sizeX]{};
-    quadSize = { 2.0f / static_cast<f32>(map.size.x), 2.0f / static_cast<f32>(map.size.y) };
+    map.tiles = (texture_id*)MEMORY->globalAlloc(sizeof(texture_id) * sizeY * sizeX);
+    quadSize = { 2.0f * SCREEN_SIZE_WORLD_COORDS / static_cast<f32>(map.size.x), 2.0f * SCREEN_SIZE_WORLD_COORDS / static_cast<f32>(map.size.y) };
 }
 
 void Map::load() const
@@ -63,7 +62,7 @@ void Map::render() const
             // Y-axis is reversed
             glm::vec2 position = glm::vec2(quadSize.x * static_cast<f32>(j), quadSize.y * static_cast<f32>(i))
                 + quadSize / 2.0f
-                - 1.0f;
+                - SCREEN_SIZE_WORLD_COORDS;
             RENDERER->drawTexturedQuad({ position, 0.9999f }, quadSize, map.tiles[i * map.size.x + j], 0);
         }
     }
