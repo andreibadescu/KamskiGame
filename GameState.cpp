@@ -89,7 +89,7 @@ void GameState::addPlayer(const glm::vec2 position, const TextureTag tag,
 
     const Entity eId = entityRegistry.createEntity();
     playerEId = eId;
-    
+
     camera.z = 1;
     camera.x = position.x;
     camera.y = position.y;
@@ -203,7 +203,7 @@ void GameState::updatePlayerPosition()
     playerSprite.position.x = min(playerSprite.position.x, SCREEN_SIZE_WORLD_COORDS - map.getQuadSize().x * 1.7f);
     playerSprite.position.y = max(playerSprite.position.y, -SCREEN_SIZE_WORLD_COORDS + map.getQuadSize().y * 2.1f);
     playerSprite.position.y = min(playerSprite.position.y, SCREEN_SIZE_WORLD_COORDS - map.getQuadSize().y * 1.5f);
-    
+
     camera.x = playerSprite.position.x;
     camera.y = playerSprite.position.y;
 
@@ -250,7 +250,7 @@ void GameState::updatePlayerAttack()
     }
 
     const Entity projectileId = entityRegistry.createEntity();
-    
+
     // cursorPosition is not affected by the camera position in calculations.
     //To convert cursorPosition to actual world Position you have to add the camera position to it
     const glm::vec2 directionVector = glm::normalize(cursorPosition + glm::vec2{camera.x, camera.y} - entityRegistry.getComponent<SpriteComponent>(playerEId).position);

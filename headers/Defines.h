@@ -6,6 +6,7 @@
 #include "KamskiEngine/KamskiLog.h"
 #include "KamskiEngine/KamskiMemory.h"
 #include "KamskiEngine/KamskiRenderer.h"
+#include "KamskiEngine/KamskiIO.h"
 
 class GameState;
 
@@ -13,6 +14,7 @@ inline GameState* GAME_STATE;
 inline const GameLog* LOGGER;
 inline const GameRenderer* RENDERER;
 inline GameMemory* MEMORY;
+inline GameIO* IO;
 
 using texture_id = u32;
 
