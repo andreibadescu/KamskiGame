@@ -3,13 +3,14 @@
 
 extern "C"
 __declspec(dllexport)
-void loadEngine(const GameLog& logger, GameState& gameState, const GameRenderer& renderer, GameMemory& memory)
+void loadEngine(const GameLog& logger, GameState& gameState, const GameRenderer& renderer, GameMemory& memory, GameIO& io)
 {
     /* INIT ENGINE SUBSYSTEMS */
     LOGGER = &logger;
     GAME_STATE = &gameState;
     RENDERER = &renderer;
     MEMORY = &memory;
+    IO = &io;
 }
 
 extern "C"
@@ -18,13 +19,13 @@ void gameInit()
 {
     GAME_STATE->initECS();
     GAME_STATE->map.init(MAP_SIZE_X, MAP_SIZE_Y);
-
+    
     for (u8 i = 0; i < TEXTURE_COUNT; ++i)
     {
         const texture_id textureId = RENDERER->loadTexture(TEXTURE_PATHS[i]);
         GAME_STATE->linkTextureIdByTag(textureId, static_cast<TextureTag>(i));
     }
-
+    
     GAME_STATE->addPlayer({ 0.0f, 0.0f }, TextureTag::PLAYER, 500.0f, 200, 50);
     GAME_STATE->addEnemy({-500.0f, -500.0f}, TextureTag::ENEMY, 200.0f, 200, 25);
     GAME_STATE->addEnemy({ 500.0f, -500.0f }, TextureTag::ENEMY, 200.0f, 200, 25);
@@ -39,7 +40,7 @@ void gameInit()
 
 extern "C"
 __declspec(dllexport)
-void gameInput(const GameIO& input)
+void gameInput(const PlayerInput& input)
 {
     // set action keys
     GAME_STATE->actionState.startGame = input.getKeyState('R');
@@ -54,6 +55,33 @@ void gameInput(const GameIO& input)
     GAME_STATE->actionState.restart = input.getSpecialKeyState(SpecialKeyCode::RETURN);
     // set cursor position
     input.getMousePosition(GAME_STATE->cursorPosition.x, GAME_STATE->cursorPosition.y);
+    
+    if(input.getMouseButtonState(MouseButtonCode::LEFT_CLICK) == KeyState::PRESS)
+    {
+        logInfo("Left Click Down");
+    }
+    else if(input.getMouseButtonState(MouseButtonCode::LEFT_CLICK) == KeyState::RELEASE)
+    {
+        logInfo("Left Click Up");
+    }
+    
+    if(input.getMouseButtonState(MouseButtonCode::RIGHT_CLICK) == KeyState::PRESS)
+    {
+        logInfo("Right Click Down");
+    }
+    else if(input.getMouseButtonState(MouseButtonCode::RIGHT_CLICK) == KeyState::RELEASE)
+    {
+        logInfo("Right Click Up");
+    }
+    
+    if(input.getMouseButtonState(MouseButtonCode::MIDDLE_CLICK) == KeyState::PRESS)
+    {
+        logInfo("Middle Click Down");
+    }
+    else if(input.getMouseButtonState(MouseButtonCode::MIDDLE_CLICK) == KeyState::RELEASE)
+    {
+        logInfo("Middle Click Up");
+    }
 }
 
 extern "C"
