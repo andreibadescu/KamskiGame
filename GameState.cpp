@@ -199,10 +199,10 @@ void GameState::updatePlayerPosition()
         }
     }
 
-    playerSprite.position.x = max(playerSprite.position.x, -SCREEN_SIZE_WORLD_COORDS + map.getQuadSize().x * 1.7f);
-    playerSprite.position.x = min(playerSprite.position.x, SCREEN_SIZE_WORLD_COORDS - map.getQuadSize().x * 1.7f);
-    playerSprite.position.y = max(playerSprite.position.y, -SCREEN_SIZE_WORLD_COORDS + map.getQuadSize().y * 2.1f);
-    playerSprite.position.y = min(playerSprite.position.y, SCREEN_SIZE_WORLD_COORDS - map.getQuadSize().y * 1.5f);
+    playerSprite.position.x = std::max(playerSprite.position.x, -SCREEN_SIZE_WORLD_COORDS + map.getQuadSize().x * 1.7f);
+    playerSprite.position.x = std::min(playerSprite.position.x, SCREEN_SIZE_WORLD_COORDS - map.getQuadSize().x * 1.7f);
+    playerSprite.position.y = std::max(playerSprite.position.y, -SCREEN_SIZE_WORLD_COORDS + map.getQuadSize().y * 2.1f);
+    playerSprite.position.y = std::min(playerSprite.position.y, SCREEN_SIZE_WORLD_COORDS - map.getQuadSize().y * 1.5f);
 
     camera.x = playerSprite.position.x;
     camera.y = playerSprite.position.y;
@@ -259,7 +259,7 @@ void GameState::updatePlayerAttack()
                                                  entityRegistry.getComponent<SpriteComponent>(playerEId).position,
                                                  TEXTURE_SIZES[static_cast<u32>(TextureTag::PROJECTILE)],
                                                  getTextureIdByTag(TextureTag::PROJECTILE),
-                                                 atan2(directionVector.y, directionVector.x) - PI / 2.0f);
+                                                 (f32)(atan2(directionVector.y, directionVector.x) - PI / 2.0f));
 }
 
 void GameState::updatePlayer()
@@ -498,7 +498,7 @@ void GameState::moveProjectiles()
 
             const SpriteComponent& enemySprite = entityRegistry.getComponent<SpriteComponent>(enemyId);
             const f32 distanceBetween = glm::distance(enemySprite.position, projectileSprite.position);
-            if (distanceBetween <= min(enemySprite.size.x, enemySprite.size.y) / 2)
+            if (distanceBetween <= std::min(enemySprite.size.x, enemySprite.size.y) / 2)
             //if (isCollision(enemySprite, projectileSprite))
             {
                 const Entity shooterId = entityRegistry.getComponent<ProjectileComponent>(projectileId).shooterId;
