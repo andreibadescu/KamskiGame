@@ -4,21 +4,21 @@
 
 extern "C"
 __declspec(dllexport)
-void loadEngine(const GameLog& logger, GameState& gameState, const GameRenderer& renderer, GameMemory& memory, GameIO& io)
+void loadEngine(const API& api)
 {
     /* INIT ENGINE SUBSYSTEMS */
-    LOGGER = &logger;
-    GAME_STATE = &gameState;
-    RENDERER = &renderer;
-    MEMORY = &memory;
-    IO = &io;
+    LOGGER = api.logger;
+    GAME_STATE = (GameState*)api.gameState;
+    RENDERER = api.renderer;
+    MEMORY = api.memory;
+    IO = api.io;
+    ANIMATION = api.animation;
 }
 
 extern "C"
 __declspec(dllexport)
 void gameInit()
 {
-    GAME_STATE->initECS();
     GAME_STATE->map.init(MAP_SIZE_X, MAP_SIZE_Y);
 
     for (u8 i = 0; i < TEXTURE_COUNT; ++i)
@@ -32,6 +32,14 @@ void gameInit()
     GAME_STATE->addEnemy({ 500.0f, -500.0f }, TextureTag::ENEMY, 200.0f, 200, 25);
     GAME_STATE->addEnemy({ -500.0f, 500.0f }, TextureTag::ENEMY, 200.0f, 200, 25);
     GAME_STATE->addEnemy({ 500.0f, 500.0f }, TextureTag::ENEMY, 200.0f, 200, 25);
+
+    u32 textureIds[3];
+    textureIds[0] = GAME_STATE->getTextureIdByTag(TextureTag::PLAYER);
+    textureIds[1] = GAME_STATE->getTextureIdByTag(TextureTag::ENEMY);
+    textureIds[2] = GAME_STATE->getTextureIdByTag(TextureTag::FLOOR);
+
+    GAME_STATE->anim = ANIMATION->createAnimation(textureIds, ARRAY_COUNT(textureIds), 0.2f);
+    ANIMATION->startAnimation(GAME_STATE->anim);
 
     GAME_STATE->map.load();
     GAME_STATE->stopGame();
@@ -137,5 +145,6 @@ void gameRender(const f64 deltaTime)
     RENDERER->beginBatch(cam.x, cam.y, cam.z);
     GAME_STATE->map.render();
     GAME_STATE->renderSprites();
+    RENDERER->drawTexturedQuad({0,0,0}, {150, 150}, ANIMATION->getAnimationFrame(GAME_STATE->anim), 0);
     RENDERER->endBatch();
 }

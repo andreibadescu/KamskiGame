@@ -3,13 +3,15 @@
 #include "Defines.h"
 #include "KamskiEngine/KamskiContainers.h"
 #include "KamskiEngine/KamskiIO.h"
-
+#include "KamskiEngine/KamskiAnimation.h"
 #include "Map.h"
 #include "Components.h"
 
 class GameState
 {
 public:
+    animation_id anim;
+
     struct
     {
         KeyState startGame;
@@ -60,8 +62,6 @@ public:
     void moveProjectiles();
 
     bool gameHasStarted() const;
-
-    void initECS();
 
     EntityRegistry<ComponentList<KAMSKI_COMPONENTS>>& getECS();
 

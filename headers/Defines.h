@@ -3,10 +3,7 @@
 #include <KamskiEngine/engine/deps/glm/glm.hpp>
 
 #include "KamskiEngine/KamskiDefines.h"
-#include "KamskiEngine/KamskiLog.h"
-#include "KamskiEngine/KamskiMemory.h"
-#include "KamskiEngine/KamskiRenderer.h"
-#include "KamskiEngine/KamskiIO.h"
+#include "KamskiEngine/KamskiEngine.h"
 
 class GameState;
 
@@ -15,6 +12,7 @@ inline const GameLog* LOGGER;
 inline const GameRenderer* RENDERER;
 inline GameMemory* MEMORY;
 inline GameIO* IO;
+inline GameAnimation* ANIMATION;
 
 using texture_id = u32;
 
