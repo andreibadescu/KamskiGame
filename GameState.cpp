@@ -1,6 +1,5 @@
 #include "headers/GameState.h"
 #include "KamskiEngine/engine/deps/glm/glm.hpp"
-#include <queue>
 
 bool GameState::isCollision(const SpriteComponent& A, const SpriteComponent& B)
 {
@@ -254,7 +253,7 @@ void GameState::updatePlayerAttack()
     // cursorPosition is not affected by the camera position in calculations.
     //To convert cursorPosition to actual world Position you have to add the camera position to it
     const glm::vec2 directionVector = glm::normalize(cursorPosition + glm::vec2{camera.x, camera.y} - entityRegistry.getComponent<SpriteComponent>(playerEId).position);
-    entityRegistry.addComponent<ProjectileComponent>(projectileId, directionVector, 400.0f, playerEId);
+    entityRegistry.addComponent<ProjectileComponent>(projectileId, directionVector, 1400.0f, playerEId);
     entityRegistry.addComponent<SpriteComponent>(projectileId,
                                                  entityRegistry.getComponent<SpriteComponent>(playerEId).position,
                                                  TEXTURE_SIZES[static_cast<u32>(TextureTag::PROJECTILE)],
@@ -267,11 +266,6 @@ void GameState::updatePlayer()
     updatePlayerPosition();
     updatePlayerAttack();
     updatePlayerHealth();
-}
-
-void GameState::initECS()
-{
-    entityRegistry.initEntityQueue();
 }
 
 EntityRegistry<ComponentList<KAMSKI_COMPONENTS>>& GameState::getECS()
@@ -337,6 +331,7 @@ void GameState::updateEnemies()
             playerSprite.position.x - newPosition.x,
             playerSprite.position.y - newPosition.y
         };
+
         const f32 distanceBetween = glm::sqrt(vectorBetween.x * vectorBetween.x + vectorBetween.y * vectorBetween.y);
         if (distanceBetween <= map.getQuadSize().x * 1.5f)
         {
