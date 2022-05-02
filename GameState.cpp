@@ -126,12 +126,12 @@ void GameState::updatePlayerPosition()
 
     if (actionState.zoomIn == KeyState::HOLD)
     {
-        camera.z += deltaTime;
+        camera.z += camera.z * deltaTime;
     }
 
     if (actionState.zoomOut == KeyState::HOLD)
     {
-        camera.z -= deltaTime;
+        camera.z -= camera.z * deltaTime;
     }
 
     //const glm::vec2 oldPosition = playerSprite.position;
