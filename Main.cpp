@@ -12,6 +12,7 @@ void loadEngine(const API& api)
     RENDERER = api.renderer;
     MEMORY = api.memory;
     IO = api.io;
+    UI = api.ui;
     ANIMATION = api.animation;
 }
 
@@ -40,7 +41,6 @@ void gameInit()
 
     GAME_STATE->anim = ANIMATION->createAnimation(textureIds, ARRAY_COUNT(textureIds), 0.2f);
     ANIMATION->startAnimation(GAME_STATE->anim);
-
     GAME_STATE->map.load();
     GAME_STATE->stopGame();
     GAME_STATE->updateFollowers();
@@ -145,6 +145,5 @@ void gameRender(const f64 deltaTime)
     RENDERER->beginBatch(cam.x, cam.y, cam.z);
     GAME_STATE->map.render();
     GAME_STATE->renderSprites();
-    RENDERER->drawTexturedQuad({0,0,0}, {150, 150}, ANIMATION->getAnimationFrame(GAME_STATE->anim), 0);
     RENDERER->endBatch();
 }

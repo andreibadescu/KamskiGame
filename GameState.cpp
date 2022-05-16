@@ -96,11 +96,11 @@ void GameState::addPlayer(const glm::vec2 position, const TextureTag tag,
     entityRegistry.addComponent<SpriteComponent>(eId, position, TEXTURE_SIZES[static_cast<u32>(tag)], getTextureIdByTag(tag));
     entityRegistry.addComponent<EntityComponent>(eId, movementSpeed, healthPoints, attackPoints);
     entityRegistry.addComponent<TagComponent>(eId, TagComponent::PLAYER);
-    Entity healthbarEId = entityRegistry.createEntity();
+    //Entity healthbarEId = entityRegistry.createEntity();
 
-    entityRegistry.addComponent<SolidColorComponent>(healthbarEId, SolidColorComponent{{0, 0}, {TEXTURE_SIZES[static_cast<u32>(tag)].x, 20.0f}, {0.0f, 1.0f, 0.0f, 1.0f}});
-    entityRegistry.addComponent<FollowComponent>(healthbarEId, FollowComponent{ playerEId, {0, TEXTURE_SIZES[static_cast<u32>(tag)].y / 3.5f}});
-    entityRegistry.addComponent<HealthBarComponent>(healthbarEId, HealthBarComponent{{TEXTURE_SIZES[static_cast<u32>(tag)].x, 50.0f}, healthPoints});
+    //entityRegistry.addComponent<SolidColorComponent>(healthbarEId, SolidColorComponent{{0, 0}, {TEXTURE_SIZES[static_cast<u32>(tag)].x, 20.0f}, {0.0f, 1.0f, 0.0f, 1.0f}});
+    //entityRegistry.addComponent<FollowComponent>(healthbarEId, FollowComponent{ playerEId, {0, TEXTURE_SIZES[static_cast<u32>(tag)].y / 3.5f}});
+    //entityRegistry.addComponent<HealthBarComponent>(healthbarEId, HealthBarComponent{{TEXTURE_SIZES[static_cast<u32>(tag)].x, 50.0f}, healthPoints});
 }
 
 void GameState::addEnemy(const glm::vec2 position, const TextureTag tag,
@@ -442,18 +442,18 @@ void GameState::renderSprites() const
                 sprite.size.x = abs(sprite.size.x);
             }
         }
-        RENDERER->drawText(glm::vec3{sprite.position, 0.1} + glm::vec3{0, 100, 0}, 320, "GOLEM");
-        RENDERER->drawTexturedQuad({ sprite.position, 0.1 }, sprite.size, sprite.textureId, sprite.rotation);
+        RENDERER->drawText(sprite.position + glm::vec2{-80, 100}, 320, "PAULANER");
+        RENDERER->drawTexturedQuad(sprite.position, sprite.size, sprite.textureId, sprite.rotation);
     }
 
     // Uncomment this if you want the player to be rendered over every other sprite
     //const SpriteComponent playerSprite = sprites.getComponent(PLAYER_ID);
     //draw({ playerSprite.x, playerSprite.y }, map.getQuadSize() *= 2, playerSprite.textureId);
 
-    for (const SolidColorComponent& solidColor: entityRegistry.iterateComponents<SolidColorComponent>())
-    {
-        RENDERER->drawColoredQuad({ solidColor.position, solidColor.position.y }, solidColor.size, solidColor.color, solidColor.rotation);
-    }
+    //for (const SolidColorComponent& solidColor: entityRegistry.iterateComponents<SolidColorComponent>())
+    //{
+    //    RENDERER->drawColoredQuad(solidColor.position + glm::vec2{0.0f, -45.0f}, solidColor.size, solidColor.color, solidColor.rotation);
+    //}
 }
 
 void GameState::startGame()

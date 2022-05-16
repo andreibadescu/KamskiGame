@@ -63,7 +63,7 @@ void Map::render() const
             glm::vec2 position = glm::vec2(quadSize.x * static_cast<f32>(j), quadSize.y * static_cast<f32>(i))
                 + quadSize / 2.0f
                 - SCREEN_SIZE_WORLD_COORDS;
-            RENDERER->drawTexturedQuad({ position, 0.9999f }, quadSize, map.tiles[i * map.size.x + j], 0);
+            RENDERER->drawTexturedQuad(position, quadSize, map.tiles[i * map.size.x + j], 0);
         }
     }
 }
