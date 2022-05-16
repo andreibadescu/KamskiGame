@@ -10,6 +10,7 @@ class GameState;
 inline GameState* GAME_STATE;
 inline const GameLog* LOGGER;
 inline const GameRenderer* RENDERER;
+inline const GameUI* UI;
 inline GameMemory* MEMORY;
 inline GameIO* IO;
 inline GameAnimation* ANIMATION;
@@ -22,6 +23,8 @@ enum class TextureTag: u8
     PLAYER,
     PROJECTILE,
     CIRCLE,
+    BUTTON,
+    BUTTON_PRESSED,
     /* MAP TILES, RATIO ALWAYS 1:1 SO ADD THEM ONLY AFTER THIS COMMENT */
     FLOOR,
     WALL,
@@ -39,7 +42,7 @@ enum class TextureTag: u8
 #define TAG(TEXTURE) ((u32)TextureTag:: TEXTURE)
 constexpr glm::vec2 TEXTURE_SIZES[] = {
     [TAG(ENEMY)]      = {250.0f, 250.0f},
-    [TAG(PLAYER)]     = {125.0f, 250.0f},
+    [TAG(PLAYER)]     = {125.0f, 125.0f},
     [TAG(PROJECTILE)] = {60.0f, 130.0f},
     [TAG(CIRCLE)] = {100.0f, 100.0f}
 };
@@ -68,7 +71,9 @@ inline const char* TEXTURE_PATHS[] = {
     [TAG(ENEMY)]                    = TEXTURE_ASSET("enemy.png"),
     [TAG(PLAYER)]                   = TEXTURE_ASSET("player.png"),
     [TAG(PROJECTILE)]               = TEXTURE_ASSET("weapon_knife.png"),
-    [TAG(CIRCLE)]                   = TEXTURE_ASSET("circle.png")
+    [TAG(CIRCLE)]                   = TEXTURE_ASSET("circle.png"),
+    [TAG(BUTTON)]                   = TEXTURE_ASSET("menu_button.png"),
+    [TAG(BUTTON_PRESSED)]           = TEXTURE_ASSET("menu_button_press.png")
 };
 inline constexpr u32 TEXTURE_COUNT = ARRAY_COUNT(TEXTURE_PATHS);
 
