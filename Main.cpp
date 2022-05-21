@@ -1,5 +1,4 @@
 #include "headers/Defines.h"
-#include "Map.cpp"
 #include "GameState.cpp"
 
 extern "C"
@@ -7,102 +6,51 @@ __declspec(dllexport)
 void loadEngine(const API& api)
 {
     /* INIT ENGINE SUBSYSTEMS */
-    LOGGER = api.logger;
     GAME_STATE = (GameState*)api.gameState;
-    RENDERER = api.renderer;
-    MEMORY = api.memory;
-    IO = api.io;
-    UI = api.ui;
-    ANIMATION = api.animation;
+    ENGINE = api;
 }
 
 extern "C"
 __declspec(dllexport)
 void gameInit()
 {
-    GAME_STATE->map.init(MAP_SIZE_X, MAP_SIZE_Y);
-
-    for (u8 i = 0; i < TEXTURE_COUNT; ++i)
+    for (u32 i = 0; i < TEXTURE_COUNT; ++i)
     {
-        const texture_id textureId = RENDERER->loadTexture(TEXTURE_PATHS[i]);
+        const texture_id textureId = ENGINE.loadTexture(TEXTURE_PATHS[i]);
         GAME_STATE->linkTextureIdByTag(textureId, static_cast<TextureTag>(i));
     }
-
-    GAME_STATE->addPlayer({ 0.0f, 0.0f }, TextureTag::PLAYER, 500.0f, 200, 50);
-    GAME_STATE->addEnemy({-500.0f, -500.0f}, TextureTag::ENEMY, 200.0f, 200, 25);
-    GAME_STATE->addEnemy({ 500.0f, -500.0f }, TextureTag::ENEMY, 200.0f, 200, 25);
-    GAME_STATE->addEnemy({ -500.0f, 500.0f }, TextureTag::ENEMY, 200.0f, 200, 25);
-    GAME_STATE->addEnemy({ 500.0f, 500.0f }, TextureTag::ENEMY, 200.0f, 200, 25);
-
-    u32 textureIds[3];
-    textureIds[0] = GAME_STATE->getTextureIdByTag(TextureTag::PLAYER);
-    textureIds[1] = GAME_STATE->getTextureIdByTag(TextureTag::ENEMY);
-    textureIds[2] = GAME_STATE->getTextureIdByTag(TextureTag::FLOOR);
-
-    GAME_STATE->anim = ANIMATION->createAnimation(textureIds, ARRAY_COUNT(textureIds), 0.2f);
-    ANIMATION->startAnimation(GAME_STATE->anim);
-    GAME_STATE->map.load();
-    GAME_STATE->stopGame();
-    GAME_STATE->updateFollowers();
+    GAME_STATE->startGame();
     logInfo("[+] Init - done!");
 }
 
 extern "C"
 __declspec(dllexport)
-void gameInput(const PlayerInput& input)
+void gameInput()
 {
     // set action keys
-    GAME_STATE->actionState.startGame = input.getKeyState('R');
-    GAME_STATE->actionState.walkUp = input.getKeyState('W');
-    GAME_STATE->actionState.walkLeft = input.getKeyState('A');
-    GAME_STATE->actionState.walkDown = input.getKeyState('S');
-    GAME_STATE->actionState.walkRight = input.getKeyState('D');
-    GAME_STATE->actionState.zoomIn = input.getKeyState('Q');
-    GAME_STATE->actionState.zoomOut = input.getKeyState('E');
-    GAME_STATE->actionState.pauseGame = input.getKeyState('P');
-    GAME_STATE->actionState.attack = input.getSpecialKeyState(SpecialKeyCode::SPACE);
-    GAME_STATE->actionState.restart = input.getSpecialKeyState(SpecialKeyCode::RETURN);
+    GAME_STATE->actionState.startGame = ENGINE.getKeyState('R');
+    GAME_STATE->actionState.walkUp = ENGINE.getKeyState('W');
+    GAME_STATE->actionState.walkLeft = ENGINE.getKeyState('A');
+    GAME_STATE->actionState.walkDown = ENGINE.getKeyState('S');
+    GAME_STATE->actionState.walkRight = ENGINE.getKeyState('D');
+    GAME_STATE->actionState.zoomIn = ENGINE.getKeyState('Q');
+    GAME_STATE->actionState.zoomOut = ENGINE.getKeyState('E');
+    GAME_STATE->actionState.pauseGame = ENGINE.getKeyState('P');
+    GAME_STATE->actionState.attack = ENGINE.getSpecialKeyState(SpecialKeyCode::SPACE);
+    GAME_STATE->actionState.restart = ENGINE.getSpecialKeyState(SpecialKeyCode::RETURN);
+
+    if (ENGINE.getSpecialKeyState(SpecialKeyCode::CTRL) == KeyState::PRESS)
+    {
+        GAME_STATE->playerToggleVroom();
+    }
     // set cursor position
-    input.getMousePosition(GAME_STATE->cursorPosition.x, GAME_STATE->cursorPosition.y);
-
-    if (input.getMouseButtonState(MouseButtonCode::LEFT_CLICK) == KeyState::PRESS)
-    {
-        logInfo("Left Click Down");
-    }
-    else if (input.getMouseButtonState(MouseButtonCode::LEFT_CLICK) == KeyState::RELEASE)
-    {
-        logInfo("Left Click Up");
-    }
-
-    if (input.getMouseButtonState(MouseButtonCode::RIGHT_CLICK) == KeyState::PRESS)
-    {
-        logInfo("Right Click Down");
-    }
-    else if (input.getMouseButtonState(MouseButtonCode::RIGHT_CLICK) == KeyState::RELEASE)
-    {
-        logInfo("Right Click Up");
-    }
-
-    if (input.getMouseButtonState(MouseButtonCode::MIDDLE_CLICK) == KeyState::PRESS)
-    {
-        logInfo("Middle Click Down");
-    }
-    else if (input.getMouseButtonState(MouseButtonCode::MIDDLE_CLICK) == KeyState::RELEASE)
-    {
-        logInfo("Middle Click Up");
-    }
+    ENGINE.getMousePosition(GAME_STATE->cursorPosition.x, GAME_STATE->cursorPosition.y);
 }
 
 extern "C"
 __declspec(dllexport)
 void gameUpdate(f64& deltaTime)
 {
-    // check if player pressed START game
-    if (GAME_STATE->actionState.startGame == KeyState::HOLD || GAME_STATE->actionState.startGame == KeyState::PRESS)
-    {
-        GAME_STATE->startGame();
-    }
-
     if (!GAME_STATE->gameHasStarted())
     {
         return;
@@ -115,7 +63,7 @@ void gameUpdate(f64& deltaTime)
 
     deltaTime = deltaTime * (f64)(!paused);
     // check if player pressed RESTART game
-    if (GAME_STATE->actionState.restart == KeyState::HOLD || GAME_STATE->actionState.restart == KeyState::PRESS)
+    if (GAME_STATE->actionState.restart == KeyState::PRESS)
     {
         GAME_STATE->stopGame();
     }
@@ -142,8 +90,8 @@ __declspec(dllexport)
 void gameRender(const f64 deltaTime)
 {
     glm::vec3 cam = GAME_STATE->getCamera();
-    RENDERER->beginBatch(cam.x, cam.y, cam.z);
-    GAME_STATE->map.render();
+    ENGINE.beginBatch(cam.x, cam.y, cam.z);
+    GAME_STATE->render();
     GAME_STATE->renderSprites();
-    RENDERER->endBatch();
+    ENGINE.endBatch();
 }
