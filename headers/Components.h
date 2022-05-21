@@ -23,6 +23,7 @@ struct SpriteComponent
     glm::vec2 size;
     texture_id textureId;
     f32 rotation;
+    u8 animationState;
 };
 
 struct SolidColorComponent
