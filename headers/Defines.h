@@ -4,9 +4,8 @@
 
 #include "KamskiEngine/KamskiApi.h"
 
-class GameState;
-
-inline GameState* GAME_STATE;
+class Game;
+inline Game* GAME;
 
 using texture_id = u32;
 
@@ -102,6 +101,14 @@ constexpr EntityStats ENEMIES_STATS[] = {
     [ZOMBIE] = {TextureTag::ENEMY, DEFAULT_ENEMY_SPEED, 200.0f, 25.0f}
 };
 
+enum States {
+    MAIN_MENU,
+    GAME_START,
+    GAME_RUNNING,
+    GAME_PAUSED,
+    GAME_LOST
+};
+
 #define COLLISION_START WALL
 #define COLLISION_END WALL_CORNER_TOP_RIGHT
 
@@ -147,4 +154,4 @@ inline constexpr u32 TEXTURE_COUNT = ARRAY_COUNT(TEXTURE_PATHS);
 #undef TEXTURE_ASSET
 #define KASMKI_MAX_ENTITY_COUNT 20000
 #define KAMSKI_COMPONENTS SpriteComponent, TagComponent, SolidColorComponent, FollowComponent, EntityComponent, ProjectileComponent, HealthBarComponent
-#define ID(TAG) GAME_STATE->getTextureIdByTag(TextureTag::TAG)
+#define ID(TAG) getTextureIdByTag(TextureTag::TAG)

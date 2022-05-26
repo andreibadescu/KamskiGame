@@ -1,8 +1,32 @@
-#include "headers/GameState.h"
+#include "headers/Game.h"
 #include "KamskiEngine/engine/deps/glm/glm.hpp"
 #include <random>
 
-bool GameState::isCollision(const SpriteComponent& A, const SpriteComponent& B)
+extern "C"
+__declspec(dllexport)
+void gameInit() {
+    GAME->gameInit();
+}
+
+extern "C"
+__declspec(dllexport)
+void gameInput() {
+    GAME->gameInput();
+}
+
+extern "C"
+__declspec(dllexport)
+void gameUpdate(f64& deltaTime) {
+    GAME->gameUpdate(deltaTime);
+}
+
+extern "C"
+__declspec(dllexport)
+void gameRender(f64 deltaTime) {
+    GAME->gameRender(deltaTime);
+}
+
+bool Game::isCollision(const SpriteComponent& A, const SpriteComponent& B)
 {
     return (A.position.x < B.position.x + B.size.x) &&
            (A.position.x + A.size.x > B.position.x) &&
@@ -10,22 +34,17 @@ bool GameState::isCollision(const SpriteComponent& A, const SpriteComponent& B)
            (A.position.y + A.size.y / 2 > B.position.y);
 }
 
-bool GameState::playerHasDied() const
-{
-    return gameOver;
-}
-
-void GameState::linkTextureIdByTag(const texture_id id, const TextureTag tag)
+void Game::linkTextureIdByTag(const texture_id id, const TextureTag tag)
 {
     textureIdsByTag[static_cast<u32>(tag)] = id;
 }
 
-texture_id GameState::getTextureIdByTag(const TextureTag tag) const
+texture_id Game::getTextureIdByTag(const TextureTag tag) const
 {
     return textureIdsByTag[static_cast<u32>(tag)];
 }
 
-void GameState::updateFollowers()
+void Game::updateFollowers()
 {
     ComponentVector<FollowComponent>& followers = entityRegistry.getComponentVector<FollowComponent>();
     ComponentVector<SpriteComponent>& sprites = entityRegistry.getComponentVector<SpriteComponent>();
@@ -63,7 +82,7 @@ void GameState::updateFollowers()
     entityRegistry.removeMarkedEntities();
 }
 
-void GameState::updateHealthBars()
+void Game::updateHealthBars()
 {
     for (const Entity healthBarId:
          entityRegistry.iterateEntities<HealthBarComponent,SolidColorComponent, FollowComponent>())
@@ -78,12 +97,12 @@ void GameState::updateHealthBars()
     }
 }
 
-glm::vec3 GameState::getCamera() const
+glm::vec3 Game::getCamera() const
 {
     return camera;
 }
 
-void GameState::addPlayer(const glm::vec2 position, const TextureTag tag,
+void Game::addPlayer(const glm::vec2 position, const TextureTag tag,
                           const f32 movementSpeed, const f32 healthPoints, const f32 attackPoints)
 {
     const Entity eId = entityRegistry.createEntity();
@@ -105,7 +124,7 @@ void GameState::addPlayer(const glm::vec2 position, const TextureTag tag,
     entityRegistry.addComponent<HealthBarComponent>(healthbarEId, HealthBarComponent{{TEXTURE_SIZES[static_cast<u32>(tag)].x, 50.0f}, healthPoints});
 }
 
-void GameState::addPlayer(glm::vec2 position)
+void Game::addPlayer(glm::vec2 position)
 {
     playerEId = addEntity(position, PLAYER);
 
@@ -116,7 +135,7 @@ void GameState::addPlayer(glm::vec2 position)
     playerRadius = TEXTURE_SIZES[(u32)ENEMIES_STATS[PLAYER].tag].x / 2.0f;
 }
 
-Entity GameState::addEntity(const glm::vec2 position, const TextureTag tag,
+Entity Game::addEntity(const glm::vec2 position, const TextureTag tag,
                             const f32 movementSpeed, const f32 healthPoints, const f32 attackPoints)
 {
     Entity eId = entityRegistry.createEntity();
@@ -134,7 +153,7 @@ Entity GameState::addEntity(const glm::vec2 position, const TextureTag tag,
     return eId;
 }
 
-Entity GameState::addEntity(glm::vec2 position, EntityStats stats)
+Entity Game::addEntity(glm::vec2 position, EntityStats stats)
 {
     Entity eId = entityRegistry.createEntity();
 
@@ -154,12 +173,12 @@ Entity GameState::addEntity(glm::vec2 position, EntityStats stats)
     return eId;
 }
 
-Entity GameState::addEntity(glm::vec2 position, EntityType enemyType)
+Entity Game::addEntity(glm::vec2 position, EntityType enemyType)
 {
     return addEntity(position, ENEMIES_STATS[ZOMBIE]);
 }
 
-void GameState::updatePlayerPosition()
+void Game::updatePlayerPosition()
 {
     SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
     EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
@@ -214,7 +233,7 @@ void GameState::updatePlayerPosition()
     //}
 }
 
-void GameState::updatePlayerHealth()
+void Game::updatePlayerHealth()
 {
     const SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
     EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
@@ -231,14 +250,14 @@ void GameState::updatePlayerHealth()
             playerEntity.healthPoints -= enemyEntity.attackPoints * deltaTime;
             if (playerEntity.healthPoints <= 0.0f)
             {
-                gameOver = true;
+                gameState = GAME_LOST;
                 return;
             }
         }
     }
 }
 
-void GameState::updatePlayerAttack()
+void Game::updatePlayerAttack()
 {
     if (actionState.attack != KeyState::PRESS && actionState.attack != KeyState::HOLD)
     {
@@ -258,20 +277,20 @@ void GameState::updatePlayerAttack()
                                                  (f32)(atan2(directionVector.y, directionVector.x) - PI / 2.0f));
 }
 
-void GameState::updatePlayer()
+void Game::updatePlayer()
 {
     updatePlayerPosition();
     updatePlayerAttack();
     updatePlayerHealth();
 }
 
-EntityRegistry<ComponentList<KAMSKI_COMPONENTS>>& GameState::getECS()
+EntityRegistry<ComponentList<KAMSKI_COMPONENTS>>& Game::getECS()
 {
     return entityRegistry;
 }
 
 /* Custom collision */
-void GameState::updateEnemies()
+void Game::updateEnemies()
 {
     const SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
 
@@ -323,7 +342,7 @@ void GameState::updateEnemies()
     }
 }
 
-void GameState::renderSprites() const
+void Game::renderSprites() const
 {
     u32 cnt = 0;
     const ComponentVector<SpriteComponent>& sprites = entityRegistry.getComponentVector<SpriteComponent>();
@@ -382,7 +401,7 @@ void GameState::renderSprites() const
     }
 }
 
-void GameState::startGame()
+void Game::startGame()
 {
     init(MAP_SIZE_X, MAP_SIZE_Y);
     addPlayer(startPosition, TextureTag::PLAYER, DEFAULT_PLAYER_SPEED, 200, 50);
@@ -390,26 +409,20 @@ void GameState::startGame()
     animations = (animation_id*)ENGINE.globalAlloc(sizeof(animation_id) * ANIMATION_STATE_COUNT);
     // for (u32 i = 0; i < ANIMATION_STATE_COUNT; ++i)
     // {
-    //     GAME_STATE->animations[i] = ANIMATION->createAnimation(textureIds, ARRAY_COUNT(textureIds), 0.2f);
+    //     GAME->animations[i] = ANIMATION->createAnimation(textureIds, ARRAY_COUNT(textureIds), 0.2f);
     // }
 
     updateFollowers();
     ENGINE.printGlobalAllocations(false);
-    gameOver = false;
+    GAME->gameState = GAME_RUNNING;
 }
 
-void GameState::stopGame()
-{
-    ENGINE.globalFree(map.tiles);
-    gameOver = true;
-}
-
-void GameState::updateDeltaTime(const f32 deltaTime)
+void Game::updateDeltaTime(const f32 deltaTime)
 {
     this->deltaTime = deltaTime;
 }
 
-void GameState::moveProjectiles()
+void Game::moveProjectiles()
 {
     for (const auto& projectileId : entityRegistry.iterateEntities<SpriteComponent, ProjectileComponent>())
     {
@@ -449,44 +462,39 @@ void GameState::moveProjectiles()
     entityRegistry.removeMarkedEntities();
 }
 
-bool GameState::gameHasStarted() const
-{
-    return !gameOver;
-}
-
-glm::vec2 GameState::getCameraUnits() const
+glm::vec2 Game::getCameraUnits() const
 {
     return ENGINE.getScreenSize() / camera.z;
 }
 
-glm::vec2 GameState::getCameraLeftTopCorner() const
+glm::vec2 Game::getCameraLeftTopCorner() const
 {
     return {camera.x - getCameraUnits().x, camera.y + getCameraUnits().y};
 }
 
-glm::vec2 GameState::getCameraRightTopCorner() const
+glm::vec2 Game::getCameraRightTopCorner() const
 {
     return {camera.x + getCameraUnits().x, camera.y + getCameraUnits().y};
 }
 
-glm::vec2 GameState::getCameraLeftBottomCorner() const
+glm::vec2 Game::getCameraLeftBottomCorner() const
 {
     return {camera.x - getCameraUnits().x, camera.y - getCameraUnits().y};
 }
 
-glm::vec2 GameState::getCameraRightBottomCorner() const
+glm::vec2 Game::getCameraRightBottomCorner() const
 {
     return {camera.x + getCameraUnits().x, camera.y - getCameraUnits().y};
 }
 
-bool GameState::isOnScreen(glm::vec2 pos) const {
+bool Game::isOnScreen(glm::vec2 pos) const {
     glm::vec2 leftBottomCorner = getCameraLeftBottomCorner();
     glm::vec2 rightTopCorner = getCameraRightTopCorner();
     return pos.x >= leftBottomCorner.x && pos.x <= rightTopCorner.x &&
            pos.y >= leftBottomCorner.y && pos.y <= rightTopCorner.y;
 }
 
-void GameState::playerToggleVroom()
+void Game::playerToggleVroom()
 {
     EntityComponent& player = entityRegistry.getComponent<EntityComponent>(playerEId);
     isVroomOn = !isVroomOn;
@@ -496,19 +504,19 @@ void GameState::playerToggleVroom()
         player.movementSpeed = DEFAULT_PLAYER_SPEED;
 }
 
-glm::uvec2 GameState::getTileByPosition(glm::vec2 position) const
+glm::uvec2 Game::getTileByPosition(glm::vec2 position) const
 {
     // we substract map.quadSize / 2 because we draw map.tiles from the center
     return (glm::uvec2)(position / map.quadSize);
 }
 
-glm::vec2 GameState::getPlayerSpritePosition() const
+glm::vec2 Game::getPlayerSpritePosition() const
 {
     return entityRegistry.getComponent<SpriteComponent>(playerEId).position;
 }
 
 // position used for collisions
-glm::vec2 GameState::getPlayerBasePosition() const
+glm::vec2 Game::getPlayerBasePosition() const
 {
     assert(TEXTURE_SIZES[TAG(PLAYER)].x <= TEXTURE_SIZES[TAG(PLAYER)].y && "Ratia texturii (x/y) playerului este prea mare");
     glm::vec2 spritePos = getPlayerSpritePosition();
@@ -516,28 +524,28 @@ glm::vec2 GameState::getPlayerBasePosition() const
 }
 
 // position used for collisions
-glm::vec2 GameState::getBasePosition(glm::vec2 spritePos, TextureTag tag) const
+glm::vec2 Game::getBasePosition(glm::vec2 spritePos, TextureTag tag) const
 {
     assert(TEXTURE_SIZES[(u32)tag].x <= TEXTURE_SIZES[(u32)tag].y && "Ratia texturii (x/y) este prea mare");
     return {spritePos.x, spritePos.y - (TEXTURE_SIZES[(u32)tag].y - TEXTURE_SIZES[(u32)tag].x) / 2};
 }
 
-glm::vec2 GameState::playerBaseToSpritePosition(glm::vec2 basePosition) const
+glm::vec2 Game::playerBaseToSpritePosition(glm::vec2 basePosition) const
 {
     return {basePosition.x, basePosition.y + (TEXTURE_SIZES[TAG(PLAYER)].y - TEXTURE_SIZES[TAG(PLAYER)].x) / 2};
 }
 
-glm::vec2 GameState::baseToSpritePosition(glm::vec2 basePosition, TextureTag tag) const
+glm::vec2 Game::baseToSpritePosition(glm::vec2 basePosition, TextureTag tag) const
 {
     return {basePosition.x, basePosition.y + (TEXTURE_SIZES[(u32)tag].y - TEXTURE_SIZES[(u32)tag].x) / 2};
 }
 
-f32 GameState::calcRadiusOfEntity(TextureTag tag)
+f32 Game::calcRadiusOfEntity(TextureTag tag)
 {
     return TEXTURE_SIZES[(u32)tag].x / 2.0f;
 }
 
-void GameState::resolveCollision(glm::vec2 oldPos, glm::vec2& pos, u32 radius)
+void Game::resolveCollision(glm::vec2 oldPos, glm::vec2& pos, u32 radius)
 {
     glm::uvec2 tile = getTileByPosition(pos);
     assert(tile.x > 0 && tile.y > 0);
@@ -574,20 +582,20 @@ void GameState::resolveCollision(glm::vec2 oldPos, glm::vec2& pos, u32 radius)
     }
 }
 
-glm::vec2 GameState::resolveBasePositionCollision(glm::vec2 oldPosition, glm::vec2 position, TextureTag tag)
+glm::vec2 Game::resolveBasePositionCollision(glm::vec2 oldPosition, glm::vec2 position, TextureTag tag)
 {
     glm::vec2 basePos = getBasePosition(position, tag);
     resolveCollision(getBasePosition(oldPosition, tag), basePos, calcRadiusOfEntity(tag));
     return baseToSpritePosition(basePos, tag);
 }
 
-bool GameState::checkFillTile(bool* mat, u32 tileIndex) const
+bool Game::checkFillTile(bool* mat, u32 tileIndex) const
 {
     // return !mat[tileIndex] && map.tiles[tileIndex] >= ID(WALL) && map.tiles[tileIndex] <= ID(WALL_CORNER_TOP_RIGHT);
     return map.tiles[tileIndex] >= ID(WALL) && map.tiles[tileIndex] <= ID(WALL_CORNER_TOP_RIGHT);
 }
 
-bool GameState::fill_util_x(bool* mat, i32 tileX, i32 tileY)
+bool Game::fill_util_x(bool* mat, i32 tileX, i32 tileY)
 {
     assert(tileX >= 0 && tileX < map.size.x &&
            tileY >= 0 && tileY < map.size.y);
@@ -617,7 +625,7 @@ bool GameState::fill_util_x(bool* mat, i32 tileX, i32 tileY)
     return ok;
 }
 
-bool GameState::fill_util_y(bool* mat, i32 tileX, i32 tileY)
+bool Game::fill_util_y(bool* mat, i32 tileX, i32 tileY)
 {
     assert(tileX >= 0 && tileX < map.size.x &&
            tileY >= 0 && tileY < map.size.y);
@@ -647,7 +655,7 @@ bool GameState::fill_util_y(bool* mat, i32 tileX, i32 tileY)
     return ok;
 }
 
-void GameState::fill()
+void Game::fill()
 {
     bool* mat = (bool*)ENGINE.globalAlloc(sizeof(bool) * map.size.x * map.size.y);
     memset(mat, false, sizeof(bool) * map.size.x * map.size.y);
@@ -671,7 +679,7 @@ void GameState::fill()
     ENGINE.globalFree(mat);
 }
 
-void GameState::init(const u32 sizeX, const u32 sizeY)
+void Game::init(const u32 sizeX, const u32 sizeY)
 {
     map.size.x = sizeX;
     map.size.y = sizeY;
@@ -687,17 +695,17 @@ void GameState::init(const u32 sizeX, const u32 sizeY)
     fill();
 }
 
-glm::vec2 GameState::getCenterPositionByTile(glm::uvec2 tile) const
+glm::vec2 Game::getCenterPositionByTile(glm::uvec2 tile) const
 {
     return glm::vec2((f32)tile.x, (f32)tile.y) * map.quadSize + map.quadSize / 2.0f;
 }
 
-glm::vec2 GameState::getLeftBottomCornerByTile(glm::uvec2 tile) const
+glm::vec2 Game::getLeftBottomCornerByTile(glm::uvec2 tile) const
 {
     return glm::vec2((f32)tile.x, (f32)tile.y) * map.quadSize;
 }
 
-void GameState::render() const
+void Game::render() const
 {
     for (u32 i = 0; i < map.tilesArrSize; ++i)
     {
@@ -719,12 +727,12 @@ void GameState::render() const
     }
 }
 
-glm::vec2 GameState::getQuadSize() const
+glm::vec2 Game::getQuadSize() const
 {
     return map.quadSize;
 }
 
-void GameState::generateMapLevel()
+void Game::generateMapLevel()
 {
     assert(map.size.x >= ROOM.MAX.x && map.size.y >= ROOM.MAX.y);
     u64 seed = std::random_device()();
