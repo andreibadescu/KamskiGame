@@ -1,97 +1,104 @@
-#include "headers/Defines.h"
-#include "GameState.cpp"
+#include "Game.cpp"
 
 extern "C"
 __declspec(dllexport)
 void loadEngine(const API& api)
 {
     /* INIT ENGINE SUBSYSTEMS */
-    GAME_STATE = (GameState*)api.gameState;
+    GAME = (Game*)api.gameState;
     ENGINE = api;
 }
 
-extern "C"
-__declspec(dllexport)
-void gameInit()
+void Game::gameInit()
 {
     for (u32 i = 0; i < TEXTURE_COUNT; ++i)
     {
         const texture_id textureId = ENGINE.loadTexture(TEXTURE_PATHS[i]);
-        GAME_STATE->linkTextureIdByTag(textureId, static_cast<TextureTag>(i));
+        linkTextureIdByTag(textureId, static_cast<TextureTag>(i));
     }
-    GAME_STATE->startGame();
+    startGame();
     logInfo("[+] Init - done!");
 }
 
-extern "C"
-__declspec(dllexport)
-void gameInput()
+void Game::gameInput()
 {
     // set action keys
-    GAME_STATE->actionState.startGame = ENGINE.getKeyState('R');
-    GAME_STATE->actionState.walkUp = ENGINE.getKeyState('W');
-    GAME_STATE->actionState.walkLeft = ENGINE.getKeyState('A');
-    GAME_STATE->actionState.walkDown = ENGINE.getKeyState('S');
-    GAME_STATE->actionState.walkRight = ENGINE.getKeyState('D');
-    GAME_STATE->actionState.zoomIn = ENGINE.getKeyState('Q');
-    GAME_STATE->actionState.zoomOut = ENGINE.getKeyState('E');
-    GAME_STATE->actionState.pauseGame = ENGINE.getKeyState('P');
-    GAME_STATE->actionState.attack = ENGINE.getSpecialKeyState(SpecialKeyCode::SPACE);
-    GAME_STATE->actionState.restart = ENGINE.getSpecialKeyState(SpecialKeyCode::RETURN);
+    actionState.startGame = ENGINE.getKeyState('R');
+    actionState.walkUp = ENGINE.getKeyState('W');
+    actionState.walkLeft = ENGINE.getKeyState('A');
+    actionState.walkDown = ENGINE.getKeyState('S');
+    actionState.walkRight = ENGINE.getKeyState('D');
+    actionState.zoomIn = ENGINE.getKeyState('Q');
+    actionState.zoomOut = ENGINE.getKeyState('E');
+    actionState.pauseGame = ENGINE.getKeyState('P');
+    actionState.attack = ENGINE.getSpecialKeyState(SpecialKeyCode::SPACE);
+    actionState.restart = ENGINE.getSpecialKeyState(SpecialKeyCode::RETURN);
 
     if (ENGINE.getSpecialKeyState(SpecialKeyCode::CTRL) == KeyState::PRESS)
     {
-        GAME_STATE->playerToggleVroom();
+        playerToggleVroom();
     }
     // set cursor position
-    ENGINE.getMousePosition(GAME_STATE->cursorPosition.x, GAME_STATE->cursorPosition.y);
+    ENGINE.getMousePosition(cursorPosition.x, cursorPosition.y);
 }
 
-extern "C"
-__declspec(dllexport)
-void gameUpdate(f64& deltaTime)
+void Game::gameUpdate(f64& deltaTime)
 {
-    if (!GAME_STATE->gameHasStarted())
+    switch (gameState)
     {
-        return;
-    }
-    static bool paused = false;
-    if (GAME_STATE->actionState.pauseGame == KeyState::PRESS)
-    {
-        paused = !paused;
-    }
+    case MAIN_MENU:
+        break;
 
-    deltaTime = deltaTime * (f64)(!paused);
-    // check if player pressed RESTART game
-    if (GAME_STATE->actionState.restart == KeyState::PRESS)
-    {
-        GAME_STATE->stopGame();
-    }
-    else
-    {
-        GAME_STATE->updateDeltaTime(static_cast<f32>(deltaTime));
-        // update entities
-        GAME_STATE->updatePlayer();
-        GAME_STATE->updateEnemies();
-        GAME_STATE->moveProjectiles();
-        GAME_STATE->updateFollowers();
-        GAME_STATE->updateHealthBars();
-    }
+    case GAME_PAUSED:
+        if (actionState.pauseGame == KeyState::PRESS)
+        {
+            gameState = GAME_RUNNING;
+        }
+        break;
 
-    if (GAME_STATE->playerHasDied())
-    {
-        memset(GAME_STATE, 0, sizeof(*GAME_STATE));
+    [[unlikely]]
+    case GAME_START:
+        memset(this, 0, sizeof(Game));
         gameInit();
+        break;
+
+    [[likely]]
+    case GAME_RUNNING:
+        if (actionState.pauseGame == KeyState::PRESS)
+        {
+            gameState = GAME_PAUSED;
+        }
+
+        deltaTime = deltaTime;
+        // check if player pressed RESTART game
+        if (actionState.restart == KeyState::PRESS)
+        {
+            ENGINE.globalFree(map.tiles);
+            gameState = GAME_LOST;
+        }
+        else
+        {
+            updateDeltaTime((f32)deltaTime);
+            updatePlayer();
+            updateEnemies();
+            moveProjectiles();
+            updateFollowers();
+            updateHealthBars();
+        }
+        break;
+
+    [[unlikely]]
+    case GAME_LOST:
+        gameState = GAME_START;
+        break;
     }
 }
 
-extern "C"
-__declspec(dllexport)
-void gameRender(const f64 deltaTime)
+void Game::gameRender(const f64 deltaTime)
 {
-    glm::vec3 cam = GAME_STATE->getCamera();
+    glm::vec3 cam = getCamera();
     ENGINE.beginBatch(cam.x, cam.y, cam.z);
-    GAME_STATE->render();
-    GAME_STATE->renderSprites();
+    render();
+    renderSprites();
     ENGINE.endBatch();
 }

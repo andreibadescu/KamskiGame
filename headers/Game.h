@@ -3,7 +3,7 @@
 #include "Defines.h"
 #include "Components.h"
 
-class GameState
+class Game
 {
 public:
     Entity playerEId;
@@ -11,11 +11,11 @@ public:
     f32 deltaTime;
     EntityRegistry<ComponentList<KAMSKI_COMPONENTS>> entityRegistry;
     glm::vec3 camera;
-    bool gameOver;
     bool isVroomOn;
     glm::vec2 startPosition;
     f32 playerRadius;
     animation_id* animations;
+    States gameState;
 
     struct
     {
@@ -50,9 +50,15 @@ public:
         u32 tilesArrSize;
     } map;
 
-    GameState() = delete;
+    Game() = delete;
 
-    bool playerHasDied() const;
+    void gameInit();
+
+    void gameInput();
+
+    void gameUpdate(f64& deltaTime);
+
+    void gameRender(const f64 deltaTime);
 
     void linkTextureIdByTag(texture_id id, TextureTag tag);
 
@@ -85,6 +91,8 @@ public:
     void updateDeltaTime(f32 deltaTime);
 
     void moveProjectiles();
+
+    void changeGameState();
 
     bool gameHasStarted() const;
 
@@ -126,7 +134,7 @@ public:
 
     glm::vec2 baseToSpritePosition(glm::vec2 basePosition, TextureTag tag) const;
 
-    f32 GameState::calcRadiusOfEntity(TextureTag tag);
+    f32 calcRadiusOfEntity(TextureTag tag);
 
     void resolveCollision(glm::vec2 oldPos, glm::vec2& pos, u32 radius);
 
