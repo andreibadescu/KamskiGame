@@ -68,7 +68,18 @@ void Game::gameUpdate(f64& deltaTime)
         {
             gameState = GAME_PAUSED;
         }
-
+        if(ENGINE.uiButtonHoverText(
+                                    {0,0},
+                                    ENGINE.getScreenSize() / 10.0f,
+                                    AnchorPoint::C,
+                                    ID(BUTTON),
+                                    ID(BUTTON_PRESSED),
+                                    10.0f,
+                                    "PLAY AGAIN"))
+        {
+            gameState = GAME_START;
+        }            
+        
         deltaTime = deltaTime;
         // check if player pressed RESTART game
         if (actionState.restart == KeyState::PRESS)
@@ -79,17 +90,18 @@ void Game::gameUpdate(f64& deltaTime)
         else
         {
             updateDeltaTime((f32)deltaTime);
+            velocitySystem();
             updatePlayer();
             updateEnemies();
             moveProjectiles();
             updateFollowers();
             updateHealthBars();
+            itemPickupSystem();
         }
         break;
 
     [[unlikely]]
     case GAME_LOST:
-        gameState = GAME_START;
         break;
     }
 }

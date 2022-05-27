@@ -1,7 +1,6 @@
 #pragma once
 
 #include <KamskiEngine/engine/deps/glm/glm.hpp>
-
 #include "KamskiEngine/KamskiApi.h"
 
 class Game;
@@ -96,6 +95,43 @@ struct EntityStats
     f32 attackPoints;
 };
 
+struct ItemSet
+{
+    u32 weapons;
+    u32 armours;
+    u32 utility;
+};
+
+enum ItemType : u32
+{
+    ITEM_TYPE_WEAPON,
+    ITEM_TYPE_ARMOUR,
+    ITEM_TYPE_UTILITY
+};
+
+enum Weapon : u32
+{
+    WEAPON_BOW    = BIT(0),
+    WEAPON_SWORD  = BIT(1),
+    WEAPON_SHIELD = BIT(2)
+};
+
+enum Armour : u32
+{
+    ARMOUR_HELMET = BIT(0),
+    ARMOUR_CHESTPLATE = BIT(1),
+    ARMOUR_PANTS = BIT(2)
+};
+
+enum Utility : u32
+{
+    UTILITY_GRENADE = BIT(0),
+    UTILITY_POTION = BIT(1),
+    UTILITY_ROPE = BIT(2)
+};
+
+using ItemBit = u32;
+
 constexpr EntityStats ENEMIES_STATS[] = {
     [PLAYER] = {TextureTag::PLAYER, DEFAULT_PLAYER_SPEED, 200.0f, 50.0f},
     [ZOMBIE] = {TextureTag::ENEMY, DEFAULT_ENEMY_SPEED, 200.0f, 25.0f}
@@ -127,6 +163,7 @@ constexpr glm::vec2 TEXTURE_SIZES[] = {
 // #endif
 
 // concatenating assets' dir with filename
+
 #define TEXTURE_ASSET(filename) ("assets/" filename)
 inline const char* TEXTURE_PATHS[] = {
     // [TAG(NONE)]                     = TEXTURE_ASSET("empty.png"),
@@ -149,9 +186,10 @@ inline const char* TEXTURE_PATHS[] = {
     [TAG(BUTTON_PRESSED)]           = TEXTURE_ASSET("menu_button_press.png"),
     [TAG(DEBUG_OVERLAY)]            = TEXTURE_ASSET("debug_overlay.png")
 };
+
 inline constexpr u32 TEXTURE_COUNT = ARRAY_COUNT(TEXTURE_PATHS);
 
 #undef TEXTURE_ASSET
 #define KASMKI_MAX_ENTITY_COUNT 20000
-#define KAMSKI_COMPONENTS SpriteComponent, TagComponent, SolidColorComponent, FollowComponent, EntityComponent, ProjectileComponent, HealthBarComponent
+#define KAMSKI_COMPONENTS SpriteComponent, TagComponent, SolidColorComponent, FollowComponent, EntityComponent, ProjectileComponent, HealthBarComponent, ItemComponent, VelocityComponent
 #define ID(TAG) getTextureIdByTag(TextureTag::TAG)

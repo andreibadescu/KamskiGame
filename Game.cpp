@@ -28,10 +28,8 @@ void gameRender(f64 deltaTime) {
 
 bool Game::isCollision(const SpriteComponent& A, const SpriteComponent& B)
 {
-    return (A.position.x < B.position.x + B.size.x) &&
-           (A.position.x + A.size.x > B.position.x) &&
-           (A.position.y < B.position.y + B.size.y / 2) &&
-           (A.position.y + A.size.y / 2 > B.position.y);
+    return (abs(A.position.x - B.position.x) <= A.size.x / 2.0f + B.size.x / 2.0f) &&
+    (abs(A.position.y - B.position.y) <= A.size.y / 2.0f + B.size.y / 2.0f);
 }
 
 void Game::linkTextureIdByTag(const texture_id id, const TextureTag tag)
@@ -102,8 +100,61 @@ glm::vec3 Game::getCamera() const
     return camera;
 }
 
+
+bool Game::hasWeapon(Weapon weapon)
+{
+    return itemSet.weapons & weapon;
+}
+
+bool Game::hasArmour(Armour armour)
+{
+    return itemSet.armours & armour;
+}
+
+bool Game::hasUtility(Utility utility)
+{
+    return itemSet.utility & utility;
+}
+
+void Game::itemPickupSystem()
+{
+    SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
+    for(Entity eId : entityRegistry.iterateEntities<ItemComponent, SpriteComponent>())
+    {
+        SpriteComponent& sp = entityRegistry.getComponent<SpriteComponent>(eId);
+        if(isCollision(playerSprite, sp))
+        {
+            ItemComponent& item = entityRegistry.getComponent<ItemComponent>(eId);
+            logInfo("Before pickup: %d %d %d", itemSet.weapons, itemSet.armours, itemSet.utility);
+
+            switch(item.itemType)
+            {
+                case ITEM_TYPE_WEAPON:
+                {
+                    itemSet.weapons |= item.itemId; 
+                }break;
+                
+                case ITEM_TYPE_ARMOUR:
+                {
+                    itemSet.armours |= item.itemId; 
+                }break;
+                
+                case ITEM_TYPE_UTILITY:
+                {
+                    itemSet.utility|= item.itemId; 
+                }break;
+            }
+
+            logInfo("After pickup: %d %d %d", itemSet.weapons, itemSet.armours, itemSet.utility);
+            entityRegistry.markEntityForDeletion(eId);
+        }
+    }
+    
+    entityRegistry.removeMarkedEntities();
+}
+
 void Game::addPlayer(const glm::vec2 position, const TextureTag tag,
-                          const f32 movementSpeed, const f32 healthPoints, const f32 attackPoints)
+                     const f32 movementSpeed, const f32 healthPoints, const f32 attackPoints)
 {
     const Entity eId = entityRegistry.createEntity();
     playerEId = eId;
@@ -116,6 +167,7 @@ void Game::addPlayer(const glm::vec2 position, const TextureTag tag,
 
     entityRegistry.addComponent<SpriteComponent>(eId, position, TEXTURE_SIZES[static_cast<u32>(tag)], getTextureIdByTag(tag));
     entityRegistry.addComponent<EntityComponent>(eId, movementSpeed, healthPoints, attackPoints);
+    entityRegistry.addComponent<VelocityComponent>(eId, glm::vec2{}, glm::vec2{});
     entityRegistry.addComponent<TagComponent>(eId, TagComponent::PLAYER);
     Entity healthbarEId = entityRegistry.createEntity();
 
@@ -183,7 +235,6 @@ void Game::updatePlayerPosition()
     SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
     EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
 
-// #ifdef KAMSKI_DEBUG
     if (actionState.zoomIn == KeyState::HOLD)
     {
         camera.z += camera.z * deltaTime;
@@ -193,7 +244,6 @@ void Game::updatePlayerPosition()
     {
         camera.z -= camera.z * deltaTime;
     }
-// #endif
 
     glm::vec2 direction{0.0f, 0.0f};
     if (actionState.walkUp == KeyState::HOLD || actionState.walkUp == KeyState::PRESS)
@@ -204,15 +254,12 @@ void Game::updatePlayerPosition()
         direction += glm::vec2{-1.0f, 0.0f};
     if (actionState.walkRight == KeyState::HOLD || actionState.walkRight == KeyState::PRESS)
         direction += glm::vec2{+1.0f, 0.0f};
-
-    if (glm::length(direction) == 0.0f)
-        return;
     
-    glm::normalize(direction);
-
-    f32 distance = deltaTime * playerEntity.movementSpeed;
-    glm::vec2 nextPosition = playerSprite.position + direction * distance;
-    playerSprite.position = resolveBasePositionCollision(playerSprite.position, nextPosition, TextureTag::PLAYER);
+    
+    VelocityComponent& v = entityRegistry.getComponent<VelocityComponent>(playerEId);
+    v.targetVel = direction * playerEntity.movementSpeed;
+    
+    playerSprite.position = resolveBasePositionCollision(playerSprite.position - v.vel * deltaTime, playerSprite.position, TextureTag::PLAYER);
 
     camera.x = playerSprite.position.x;
     camera.y = playerSprite.position.y;
@@ -237,7 +284,8 @@ void Game::updatePlayerHealth()
 {
     const SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
     EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
-
+    VelocityComponent& playerVel = entityRegistry.getComponent<VelocityComponent>(playerEId);
+    
     for (const auto& enemyId: entityRegistry.iterateEntities<TagComponent, SpriteComponent, EntityComponent>())
     {
         if (entityRegistry.getComponent<TagComponent>(enemyId) == TagComponent::PLAYER)
@@ -247,7 +295,9 @@ void Game::updatePlayerHealth()
 
         if (isCollision(playerSprite, enemySprite))
         {
-            playerEntity.healthPoints -= enemyEntity.attackPoints * deltaTime;
+            playerEntity.healthPoints -= enemyEntity.attackPoints;
+            glm::vec2 dir = glm::normalize(playerSprite.position - enemySprite.position);
+            playerVel.vel += dir * 500.0f;
             if (playerEntity.healthPoints <= 0.0f)
             {
                 gameState = GAME_LOST;
@@ -400,6 +450,17 @@ void Game::renderSprites() const
         ENGINE.drawColoredQuad(solidColor.position, solidColor.size, solidColor.color, solidColor.rotation);
     }
 }
+ 
+void Game::velocitySystem()
+{
+    for(Entity vEid: entityRegistry.iterateEntities<VelocityComponent>())
+    {
+        VelocityComponent& v = entityRegistry.getComponent<VelocityComponent>(vEid);
+        SpriteComponent& sp = entityRegistry.getComponent<SpriteComponent>(vEid);
+        v.vel += (v.targetVel - v.vel) * 20.0f * deltaTime;
+        sp.position += v.vel * deltaTime;
+    }
+}
 
 void Game::startGame()
 {
@@ -413,6 +474,14 @@ void Game::startGame()
     // }
 
     updateFollowers();
+    
+    SpriteComponent& playerSp = entityRegistry.getComponent<SpriteComponent>(playerEId);
+    
+    Entity itemEId = entityRegistry.createEntity();
+    
+    entityRegistry.addComponent<ItemComponent>(itemEId, ITEM_TYPE_WEAPON, WEAPON_SWORD);
+    entityRegistry.addComponent<SpriteComponent>(itemEId, playerSp.position + glm::vec2(150, 0), glm::vec2(25, 25), getTextureIdByTag(TextureTag::CIRCLE));
+    
     ENGINE.printGlobalAllocations(false);
     GAME->gameState = GAME_RUNNING;
 }

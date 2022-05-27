@@ -34,6 +34,12 @@ struct SolidColorComponent
     f32 rotation;
 };
 
+struct VelocityComponent
+{
+    glm::vec2 targetVel;
+    glm::vec2 vel;
+};
+
 struct FollowComponent
 {
     Entity toFollowId;
@@ -58,4 +64,12 @@ struct HealthBarComponent
 {
     glm::vec2 maxSize;
     f32 maxHealth;
+};
+
+struct ItemComponent
+{
+    // Weapon, Armor, Utility
+    ItemType itemType;
+    // Bow sword, shield, helmet, etc.
+    ItemBit itemId;
 };

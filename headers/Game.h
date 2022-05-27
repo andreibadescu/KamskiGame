@@ -16,7 +16,8 @@ public:
     f32 playerRadius;
     animation_id* animations;
     States gameState;
-
+    ItemSet itemSet;
+    
     struct
     {
         KeyState startGame;
@@ -73,7 +74,11 @@ public:
     Entity addEntity(glm::vec2 position, EntityStats stats);
 
     Entity addEntity(glm::vec2 position, EntityType enemyType);
-
+    
+    void velocitySystem();
+    
+    void itemPickupSystem();
+    
     void updateFollowers();
 
     void updateHealthBars();
@@ -87,7 +92,13 @@ public:
     void startGame();
 
     void stopGame();
-
+    
+    bool hasWeapon(Weapon weapon);
+    
+    bool hasArmour(Armour armour);
+    
+    bool hasUtility(Utility utility);
+    
     void updateDeltaTime(f32 deltaTime);
 
     void moveProjectiles();
