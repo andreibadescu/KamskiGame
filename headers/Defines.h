@@ -50,6 +50,10 @@ enum class TextureTag: u32
     BUTTON,
     BUTTON_PRESSED,
     MOUSE_POINTER,
+    STATS_UI,
+    ITEM_HOLDER_START,
+    ITEM_HOLDER_END,
+    ITEM_HOLDER,
 
     WEAPON_START,
     SWORD_0 = WEAPON_START,
@@ -411,6 +415,10 @@ inline const char* TEXTURE_PATHS[] = {
     [TAG(BUTTON)]                        = UI_ASSET("button.png"),
     [TAG(BUTTON_PRESSED)]                = UI_ASSET("button_press.png"),
     [TAG(MOUSE_POINTER)]                 = UI_ASSET("mouse_pointer.png"),
+    [TAG(STATS_UI)]                      = UI_ASSET("stats_ui.png"),
+    [TAG(ITEM_HOLDER_START)]             = UI_ASSET("item_holder_start.png"),
+    [TAG(ITEM_HOLDER_END)]               = UI_ASSET("item_holder_end.png"),
+    [TAG(ITEM_HOLDER)]                   = UI_ASSET("item_holder.png")
 
     [TAG(SWORD_0)]                       = WEAPON_ASSET("weapon_sword.png"),
     [TAG(SHIELD_0)]                      = WEAPON_ASSET("weapon_shield.png"),
