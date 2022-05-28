@@ -139,6 +139,7 @@ constexpr EntityStats ENEMIES_STATS[] = {
 
 enum States {
     MAIN_MENU,
+    SETTINGS,
     GAME_START,
     GAME_RUNNING,
     GAME_PAUSED,
