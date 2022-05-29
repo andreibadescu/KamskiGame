@@ -10,8 +10,10 @@ class Game {
         // and change uvec2 to vec2 (store the real position, not the relativ position inside the tiles matrix)
         glm::uvec2* tilesArr;
         glm::uvec2 size;
-        union Wall {
-            struct {
+        union Wall
+        {
+            struct 
+            {
                 glm::vec2 leftBottom;
                 glm::vec2 topRight;
             };
@@ -20,6 +22,16 @@ class Game {
         u32 numberOfWalls;
         glm::vec2 quadSize;
         u32 tilesArrSize;
+        struct
+        {
+            glm::vec2 center;
+            glm::vec2 size;
+            glm::vec2 entranceLeftBottom;
+            glm::vec2 entranceLeftTop;
+            glm::vec2 entranceRightBottom;
+            glm::vec2 entranceRightTop;
+        } rooms[100];
+        u32 roomCount;
     };
 
     // MEMORY THAT SHOULDN'T BE CHANGED
@@ -1008,7 +1020,8 @@ class Game {
         u32 leftVerticalAxis = 1;
         u32 rightVerticalAxis = map.size.x - 1;
 
-        for (u32 prevYPos = map.size.y / 2 - ROOM_AVERAGE.y, prevWidth, prevHeight, prevLeftVerticalAxis, roomRight, rooms = 0; ; ++rooms)
+        map.roomCount = 0;
+        for (u32 prevYPos = map.size.y / 2 - ROOM_AVERAGE.y, prevWidth, prevHeight, prevLeftVerticalAxis, roomRight; ; ++map.roomCount)
         {
             u32 height = (u32)ENGINE.randomRangeU64(seed, ROOM.MIN.y, ROOM.MAX.y) & (~1u);
             u32 width = (u32)ENGINE.randomRangeU64(seed, ROOM.MIN.x, ROOM.MAX.x) & (~1u);
@@ -1031,6 +1044,12 @@ class Game {
                     map.tiles[leftVerticalAxis + (yPos + i) * map.size.x + j] = TextureTag::FLOOR_1;
                 }
             }
+            glm::uvec2 tileLeftBottom{ leftVerticalAxis + 1, yPos + 1 };
+            glm::uvec2 tileRightTop{ leftVerticalAxis + width, leftVerticalAxis + height };
+            glm::vec2 cornerLeftBottom = getLeftBottomCornerByTile(tileLeftBottom);
+            glm::vec2 cornerRightTop = getLeftBottomCornerByTile(tileRightTop);
+            map.rooms[map.roomCount].center = (cornerLeftBottom + cornerRightTop) / 2.0f;
+            map.rooms[map.roomCount].size = cornerRightTop - cornerLeftBottom;
 
             // WALLS
             map.tiles[leftVerticalAxis + yPos * map.size.x] =  TextureTag::WALL_CORNER_BOTTOM_LEFT;
@@ -1079,37 +1098,40 @@ class Game {
             //         getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 2, yPos + 2}),
             //         ENEMIES_STATS[ZOMBIE].tag));
             // logDebug("");
-            addEntity(
-                      baseToSpritePosition(
-                                           getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 3, yPos + 3}),
-                                           BIG_ZOMBIE),
-                      BIG_ZOMBIE,
-                      BIG_ZOMBIE_IDLE);
-            addEntity(
-                      baseToSpritePosition(
-                                           getCenterPositionByTile(glm::uvec2{leftVerticalAxis + width - 4, yPos + 3}),
-                                           BIG_ZOMBIE),
-                      BIG_ZOMBIE,
-                      BIG_ZOMBIE_IDLE);
-            addEntity(
-                      baseToSpritePosition(
-                                           getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 3, yPos + height - 4}),
-                                           BIG_ZOMBIE),
-                      BIG_ZOMBIE,
-                      BIG_ZOMBIE_IDLE);
-            addEntity(
-                      baseToSpritePosition(
-                                           getCenterPositionByTile(glm::uvec2{leftVerticalAxis + width - 4, yPos + height - 4}),
-                                           BIG_ZOMBIE),
-                      BIG_ZOMBIE,
-                      BIG_ZOMBIE_IDLE);
+            if (map.roomCount != 0)
+            {
+                addEntity(
+                        baseToSpritePosition(
+                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 3, yPos + 3}),
+                                            BIG_ZOMBIE),
+                        BIG_ZOMBIE,
+                        BIG_ZOMBIE_IDLE);
+                addEntity(
+                        baseToSpritePosition(
+                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + width - 4, yPos + 3}),
+                                            BIG_ZOMBIE),
+                        BIG_ZOMBIE,
+                        BIG_ZOMBIE_IDLE);
+                addEntity(
+                        baseToSpritePosition(
+                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 3, yPos + height - 4}),
+                                            BIG_ZOMBIE),
+                        BIG_ZOMBIE,
+                        BIG_ZOMBIE_IDLE);
+                addEntity(
+                        baseToSpritePosition(
+                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + width - 4, yPos + height - 4}),
+                                            BIG_ZOMBIE),
+                        BIG_ZOMBIE,
+                        BIG_ZOMBIE_IDLE);
+            }
 
             const u32 prevRoomRight = roomRight;
             roomRight = leftVerticalAxis + width - 1;
             prevLeftVerticalAxis = leftVerticalAxis;
             leftVerticalAxis += width + (u32)ENGINE.randomRangeU64(seed, ROOM.MIN.x / 2, std::max(ROOM.MIN.x, ROOM.MAX.x / 2)) & (~1u);
 
-            if (rooms != 0)
+            if (map.roomCount != 0)
             {
                 // MIDDLE TUNNEL
                 u32 startY = prevYPos + prevHeight / 2;
@@ -1143,8 +1165,13 @@ class Game {
                 u32 stopX = (prevRoomRight + prevLeftVerticalAxis) / 2 - 1;
                 u32 baseY = prevYPos + prevHeight / 2;
                 // entrance - left room
+                glm::uvec2 tileLeftBottomEntrance{baseY - 1, startX };
+                glm::uvec2 tileLeftTopEntrance{ baseY + 1, startX + 1 };
+                // left end of tunnel, right entrance of previous room
+                map.rooms[map.roomCount - 1].entranceRightBottom = getLeftBottomCornerByTile(tileLeftBottomEntrance);
+                map.rooms[map.roomCount - 1].entranceRightTop = getLeftBottomCornerByTile(tileLeftTopEntrance);
+                
                 map.tiles[(baseY - 2) * map.size.x + startX] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
-                //map.walls[map.numberOfWalls++] = getLeftBottomCornerByTile({startX, baseY - 2});
                 map.tiles[(baseY - 1) * map.size.x + startX] = TextureTag::FLOOR_1;
                 map.tiles[ baseY      * map.size.x + startX] = TextureTag::FLOOR_1;
                 map.tiles[(baseY + 1) * map.size.x + startX] = TextureTag::WALL_CORNER_TOP_RIGHT;
@@ -1165,6 +1192,12 @@ class Game {
                 startX = (prevRoomRight + prevLeftVerticalAxis) / 2 + 3;
                 stopX = prevLeftVerticalAxis;
                 // entrance - right room
+                glm::uvec2 tileRightBottomEntrance{baseY - 1, stopX };
+                glm::uvec2 tileRightTopEntrance{ baseY + 1, stopX + 1 };
+                // right end of tunnel, left entrance of current room
+                map.rooms[map.roomCount].entranceLeftBottom = getLeftBottomCornerByTile(tileRightBottomEntrance);
+                map.rooms[map.roomCount].entranceLeftTop = getLeftBottomCornerByTile(tileRightTopEntrance);
+
                 map.tiles[(baseY - 2) * map.size.x + stopX] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
                 map.tiles[(baseY - 1) * map.size.x + stopX] = TextureTag::FLOOR_1;
                 map.tiles[ baseY      * map.size.x + stopX] = TextureTag::FLOOR_1;
@@ -1183,6 +1216,8 @@ class Game {
             }
             else
             {
+                map.rooms[map.roomCount].entranceLeftBottom = {-1.0f, 0.0f};
+                map.rooms[map.roomCount].entranceLeftTop = {-1.0f, 0.0f};
                 glm::vec2 cornerLeftBottom = glm::vec2((f32)prevLeftVerticalAxis, (f32)yPos);
                 cornerLeftBottom *= map.quadSize;
                 startPosition = playerBaseToSpritePosition(cornerLeftBottom + map.quadSize * glm::vec2{(f32)width / 2.0f, (f32)height / 2.0f});
@@ -1192,6 +1227,8 @@ class Game {
             prevHeight = height;
             prevYPos = yPos;
         }
+        map.rooms[map.roomCount - 1].entranceRightBottom = {-1.0f, 0.0f};
+        map.rooms[map.roomCount - 1].entranceRightTop = {-1.0f, 0.0f};
 
         map.tilesArrSize = 0;
         for (u32 i = 0; i < map.size.y; ++i)
