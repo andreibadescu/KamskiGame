@@ -56,6 +56,7 @@ void Game::gameUpdate()
     {
     case MAIN_MENU:
         ENGINE.setBlurWholeScreen(false);
+        camera.z = 1.0f;
         if (menuButton({0.0f, -ENGINE.getScreenSize().y / 5.0f}, "EXIT"))
         {
             ENGINE.exit(EXIT_SUCCESS);
@@ -157,6 +158,10 @@ void Game::gameRender()
         ENGINE.drawParticles();
         if (gameState == GAME_PAUSED)
             renderItems();
+        break;
+        case MAIN_MENU:
+        case SETTINGS:
+        renderMenuBackground();
         break;
     }
     renderCursor();
