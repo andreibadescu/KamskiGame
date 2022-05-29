@@ -849,6 +849,25 @@ class Game {
             glm::vec4 color = entityRegistry.getComponent<SolidColorComponent>(colorId).color;
             ENGINE.drawColoredQuad(colorTransform.position, colorTransform.size, color, colorTransform.rotation);
         }
+
+        const EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
+        f32 maxBarLength = 923.0f;
+        f32 healthBarLength = maxBarLength/200.0f*playerEntity.healthPoints;
+
+        glm::vec2 hudBarsPos = {0.0f,0.0f};
+        hudBarsPos = ENGINE.uiTexture(glm::vec2{20,-20}, glm::vec2{1218, 196}, AnchorPoint::NW, getTextureIdByTag(TextureTag::STATS_UI));
+        ENGINE.drawQuadUI(glm::vec2{hudBarsPos.x + 72.0f - (maxBarLength - healthBarLength)/2, hudBarsPos.y + 64.0f}, glm::vec2{healthBarLength,22}, glm::vec4{0.9f,0.1f,0.3f,0.8f}, 0.0f);
+        ENGINE.drawQuadUI(glm::vec2{hudBarsPos.x + 72.0f, hudBarsPos.y + 0.0f}, glm::vec2{920,22}, glm::vec4{0.1f,0.9f,0.3f,0.8f}, 0.0f);
+        ENGINE.drawQuadUI(glm::vec2{hudBarsPos.x - 238.0f, hudBarsPos.y + -64.0f}, glm::vec2{305,22}, glm::vec4{0.4f,0.4f,0.9f,0.8f}, 0.0f);
+            
+        glm::vec2 hudItemHolderPos = ENGINE.uiTexture(glm::vec2{20, 50}, glm::vec2{45, 84}, AnchorPoint::SW, getTextureIdByTag(TextureTag::ITEM_HOLDER_START));
+        u32 i=0;
+        for(i=0;i<4;i++)
+        {
+            ENGINE.drawUITex(glm::vec2{195.0f/2 + hudItemHolderPos.x + i*150, hudItemHolderPos.y}, glm::vec2{150, 144}, getTextureIdByTag(TextureTag::ITEM_HOLDER)); 
+        }
+        ENGINE.drawUITex(glm::vec2{45.0f + hudItemHolderPos.x + i*150, hudItemHolderPos.y}, glm::vec2{45, 84}, getTextureIdByTag(TextureTag::ITEM_HOLDER_END));
+            
     }
 
     void velocitySystem()
