@@ -34,6 +34,17 @@ struct SolidColorComponent
     f32 rotation;
 };
 
+struct EnemyComponent
+{
+    enum Phase
+    {
+        WALK,
+        SHOOT,
+        WAIT
+    }phase;
+    f32 startTime;
+};
+
 struct VelocityComponent
 {
     glm::vec2 targetVel;
@@ -57,7 +68,8 @@ struct ProjectileComponent
 {
     glm::vec2 direction;
     f32 speed;
-    Entity shooterId;
+    f32 damage;
+    bool isEnemy;
 };
 
 struct HealthBarComponent
