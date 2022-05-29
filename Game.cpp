@@ -38,6 +38,12 @@ class Game {
         COMBAT_PHASE_ON
     };
     
+    enum MenuPhase
+    {
+        MENU_PHASE_ZOOM,
+        MENU_PHASE_TRANSITION
+    };
+    
     // MEMORY THAT SHOULDN'T BE CHANGED
     TextureId textureIdsByTag[(u32)TextureTag::COUNT];
     
@@ -56,6 +62,9 @@ class Game {
             glm::vec2 buttonSize;
             f64 playerAttackTimer;
             CombatPhase combatPhase;
+            f32 menuTime;
+            MenuPhase menuPhase;
+            u32 menuTagIndex;
             
             struct
             {
@@ -172,24 +181,81 @@ class Game {
                      glm::vec2 sizeA, glm::vec2 sizeB)
     {
         return (abs(posA.x - posB.x) <= sizeA.x / 2.0f + sizeB.x / 2.0f) &&
-               (abs(posA.y - posB.y) <= sizeA.y / 2.0f + sizeB.y / 2.0f);
+        (abs(posA.y - posB.y) <= sizeA.y / 2.0f + sizeB.y / 2.0f);
     }
-
+    
+    void renderMenuBackground()
+    {
+        // Textures to go through in the slideshow
+        TextureTag tags[] = {
+            TextureTag::SWORD_0,
+            TextureTag::SHIELD_0,
+            TextureTag::FORK_0
+        };
+        
+        menuTime += deltaTime;
+        ENGINE.addLight({}, 1.0f, glm::vec4(1.0f));
+        switch(menuPhase)
+        {
+            case MENU_PHASE_ZOOM:
+            {
+                f32 zoom = (5.0f - (4.0f - menuTime)) / 5.0f;
+                logDebug("zoom = %f", zoom);                
+                ENGINE.drawTexturedQuad({}, 
+                                ENGINE.getScreenSize() * zoom, 
+                                getTextureIdByTag(tags[menuTagIndex]), 
+                                0);
+                if(menuTime >= 4.0f)
+                {
+                    menuTime = 0.0f;
+                    menuPhase = MENU_PHASE_TRANSITION;
+                }
+            }break;
+            
+            case MENU_PHASE_TRANSITION:
+            {
+                f32 zoom = (5.0f + menuTime) / 5.0f;
+                f32 zoom2 = (5.0f - (8.0f - menuTime)) / 5.0f;
+                f32 transition = (4.0f - menuTime) / 4.0f;
+                ENGINE.drawQuad({},
+                                ENGINE.getScreenSize() * zoom, 
+                                getTextureIdByTag(tags[menuTagIndex]), 
+                                glm::vec4(transition), 
+                                0);
+                
+                ENGINE.drawQuad({},
+                                ENGINE.getScreenSize() * zoom2, 
+                                getTextureIdByTag(tags[(menuTagIndex + 1) % ARRAY_COUNT(tags)]), 
+                                glm::vec4(1.0f - transition), 
+                                0);
+                
+                if(menuTime >= 4.0f)
+                {
+                    menuTime = 0.0f;
+                    menuPhase = MENU_PHASE_ZOOM;
+                    menuTagIndex = (menuTagIndex + 1) % ARRAY_COUNT(tags);
+                }
+            }break;
+            
+        }
+        
+    }
+    
     void linkTextureIdByTag(TextureId id, TextureTag tag)
     {
         textureIdsByTag[static_cast<u32>(tag)] = id;
     }
-
+    
     TextureId getTextureIdByTag(TextureTag tag) const
     {
         return textureIdsByTag[static_cast<u32>(tag)];
     }
-
+    
     TextureId getTextureIdByTag(u32 tag) const
     {
         return textureIdsByTag[tag];
     }
-
+    
     TextureId getTextureIdByItem(ItemType type, ItemBit bit)
     {
         TextureTag tag = TextureTag::NONE;
@@ -202,12 +268,12 @@ class Game {
         }
         return getTextureIdByTag(tag);
     }
-
+    
     void updateFollowers()
     {
         ComponentVector<FollowComponent>& followers = entityRegistry.getComponentVector<FollowComponent>();
         ComponentVector<TransformComponent>& transforms = entityRegistry.getComponentVector<TransformComponent>();
-
+        
         for (Entity followerId: followers.iterateEntities())
         {
             const FollowComponent& follower = followers.getComponent(followerId);
@@ -221,7 +287,7 @@ class Game {
             followerTransform.position = toFollowTransform.position + follower.followOffset;
         }
     }
-
+    
     void updateHealthBars()
     {
         for (Entity healthBarId: entityRegistry.iterateEntities<HealthBarComponent, TransformComponent, FollowComponent>())
@@ -238,7 +304,7 @@ class Game {
             healthBarComponent.size.x = healthBar.maxSize * healthPoints / healthBar.maxHealth;
         }
     }
-
+     
     const char* getItemDescription(ItemType type, ItemBit bit)
     {
         switch (type)
