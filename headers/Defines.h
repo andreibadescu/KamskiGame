@@ -40,7 +40,12 @@ enum class TextureTag: u8
     CIRCLE,
     BUTTON,
     BUTTON_PRESSED,
-    DEBUG_OVERLAY,
+
+    WEAPON_START,
+    SWORD = WEAPON_START,
+    FORK,
+    SHIELD,
+
     /* MAP TILES, RATIO ALWAYS 1:1 SO ADD THEM ONLY AFTER THIS COMMENT */
     FLOOR, // COLLISION_START
     WALL,
@@ -111,23 +116,26 @@ enum ItemType : u32
 
 enum Weapon : u32
 {
-    WEAPON_BOW    = BIT(0),
-    WEAPON_SWORD  = BIT(1),
-    WEAPON_SHIELD = BIT(2)
+    WEAPON_SWORD,
+    WEAPON_FORK,
+    WEAPON_SHIELD,
+    WEAPON_COUNT
 };
 
 enum Armour : u32
 {
-    ARMOUR_HELMET = BIT(0),
-    ARMOUR_CHESTPLATE = BIT(1),
-    ARMOUR_PANTS = BIT(2)
+    ARMOUR_HELMET,
+    ARMOUR_CHESTPLATE,
+    ARMOUR_PANTS,
+    ARMOUR_COUNT
 };
 
 enum Utility : u32
 {
-    UTILITY_GRENADE = BIT(0),
-    UTILITY_POTION = BIT(1),
-    UTILITY_ROPE = BIT(2)
+    UTILITY_GRENADE,
+    UTILITY_POTION,
+    UTILITY_ROPE,
+    UTILITY_COUNT
 };
 
 using ItemBit = u32;
@@ -157,12 +165,6 @@ constexpr glm::vec2 TEXTURE_SIZES[] = {
     [TAG(CIRCLE)]     = {10.0f, 10.0f}
 };
 
-// TO-DO: UNCOMMENT THIS
-// static_assert(ROOM.MIN.x <= ROOM.MAX.x && ROOM.MIN.y <= ROOM.MAX.y);
-// #ifndef KAMSKI_DEBUG
-// static_assert(ROOM.MIN.x > 9 && ROOM.MIN.y > 9);
-// #endif
-
 // concatenating assets' dir with filename
 
 #define TEXTURE_ASSET(filename) ("assets/" filename)
@@ -185,12 +187,14 @@ inline const char* TEXTURE_PATHS[] = {
     [TAG(CIRCLE)]                   = TEXTURE_ASSET("circle.png"),
     [TAG(BUTTON)]                   = TEXTURE_ASSET("menu_button.png"),
     [TAG(BUTTON_PRESSED)]           = TEXTURE_ASSET("menu_button_press.png"),
-    [TAG(DEBUG_OVERLAY)]            = TEXTURE_ASSET("debug_overlay.png")
+    [TAG(SWORD)]                    = TEXTURE_ASSET("sword.png"),
+    [TAG(SHIELD)]                   = TEXTURE_ASSET("shield.png"),
+    [TAG(FORK)]                     = TEXTURE_ASSET("weapon_knife.png")
 };
 
 inline constexpr u32 TEXTURE_COUNT = ARRAY_COUNT(TEXTURE_PATHS);
 
 #undef TEXTURE_ASSET
 #define KASMKI_MAX_ENTITY_COUNT 20000
-#define KAMSKI_COMPONENTS SpriteComponent, TagComponent, SolidColorComponent, FollowComponent, EntityComponent, ProjectileComponent, HealthBarComponent, ItemComponent, VelocityComponent
+#define KAMSKI_COMPONENTS SpriteComponent, TagComponent, SolidColorComponent, FollowComponent, EntityComponent, ProjectileComponent, HealthBarComponent, ItemComponent, VelocityComponent, EnemyComponent
 #define ID(TAG) getTextureIdByTag(TextureTag::TAG)

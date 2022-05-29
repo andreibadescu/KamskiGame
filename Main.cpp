@@ -34,6 +34,7 @@ void Game::gameInput()
     actionState.pauseGame = ENGINE.getKeyState('P');
     actionState.attack = ENGINE.getSpecialKeyState(SpecialKeyCode::SPACE);
     actionState.restart = ENGINE.getSpecialKeyState(SpecialKeyCode::RETURN);
+    actionState.menuInteract = ENGINE.getMouseButtonState(MouseButtonCode::LEFT_CLICK);
 
     if (ENGINE.getSpecialKeyState(SpecialKeyCode::CTRL) == KeyState::PRESS)
     {
@@ -71,9 +72,12 @@ void Game::gameUpdate()
         break;
 
     case GAME_PAUSED:
+        ENGINE.setBlurWholeScreen(true);
+        deltaTime = 0;
         if (actionState.pauseGame == KeyState::PRESS)
         {
             gameState = GAME_RUNNING;
+            ENGINE.setBlurWholeScreen(false);
         }
         break;
 
@@ -86,8 +90,9 @@ void Game::gameUpdate()
         startGame();
         break;
 
-    [[likely]]
-    case GAME_RUNNING:
+        [[likely]]
+            case GAME_RUNNING:
+        ENGINE.simulateParticles(deltaTime);
         if (actionState.pauseGame == KeyState::PRESS)
         {
             gameState = GAME_PAUSED;
@@ -136,10 +141,15 @@ void Game::gameRender()
     switch (gameState) {
         case GAME_RUNNING:
         case GAME_LOST:
-            render();
-            renderSprites();
-            break;
+        case GAME_PAUSED:
+        render();
+        renderSprites();
+        ENGINE.drawParticles();
+        if (gameState == GAME_PAUSED)
+            renderItems();
+        break;
     }
+    renderCursor();
     ENGINE.endBatch();
     ENGINE.swapClear();
 }
