@@ -14,8 +14,14 @@ void Game::gameInit()
     logDebug("%f %f", buttonSize.x, buttonSize.y);
     for (u32 i = 0; i < TEXTURE_COUNT; ++i)
     {
-        const texture_id textureId = ENGINE.loadTexture(TEXTURE_PATHS[i]);
-        linkTextureIdByTag(textureId, static_cast<TextureTag>(i));
+        logDebug("%s", TEXTURE_PATHS[i]);
+        TextureId textureId = ENGINE.loadTexture(TEXTURE_PATHS[i]);
+        logDebug("%u", textureId);
+        linkTextureIdByTag(textureId, (TextureTag)i);
+    }
+    for (u32 i = 0; i < ANIMATION_TAG_COUNT; ++i)
+    {
+        linkAnimationByTag((AnimationTag)i);
     }
     GAME->gameState = MAIN_MENU;
     logInfo("[+] Init - done!");
@@ -90,30 +96,30 @@ void Game::gameUpdate()
         startGame();
         break;
 
-        [[likely]]
-            case GAME_RUNNING:
-        ENGINE.simulateParticles(deltaTime);
+    [[likely]]
+    case GAME_RUNNING:
         if (actionState.pauseGame == KeyState::PRESS)
         {
             gameState = GAME_PAUSED;
+            break;
         }
 
-        // check if player pressed RESTART game
         if (actionState.restart == KeyState::PRESS)
         {
             ENGINE.globalFree(map.tiles);
             gameState = GAME_LOST;
+            break;
         }
-        else
-        {
-            velocitySystem();
-            updatePlayer();
-            updateEnemies();
-            moveProjectiles();
-            updateFollowers();
-            updateHealthBars();
-            itemPickupSystem();
-        }
+
+        ENGINE.simulateParticles(deltaTime);
+
+        velocitySystem();
+        updatePlayer();
+        updateEnemies();
+        moveProjectiles();
+        updateFollowers();
+        updateHealthBars();
+        itemPickupSystem();
         break;
 
     [[unlikely]]
@@ -142,7 +148,7 @@ void Game::gameRender()
         case GAME_RUNNING:
         case GAME_LOST:
         case GAME_PAUSED:
-        render();
+        renderMap();
         renderSprites();
         ENGINE.drawParticles();
         if (gameState == GAME_PAUSED)
