@@ -264,9 +264,9 @@ enum Weapon: u32
 {
     WEAPON_SWORD,
     WEAPON_SHIELD,
-    WEAPON_KNIFE,
     WEAPON_FORK,
-    WEAPON_COUNT
+    WEAPON_COUNT,
+    WEAPON_KNIFE
 };
 
 enum Armour: u32
@@ -317,18 +317,20 @@ inline constexpr glm::vec2 HIT_BOXES[]{
 };
 
 inline constexpr glm::vec2 HIT_BOXES_WEAPONS[]{
-    [WEAPON_FORK] = {15.0f, 21.0f}
+    [WEAPON_FORK] = {15.0f, 21.0f},
+    [WEAPON_KNIFE] = {8.0f, 19.5f} 
 };
 
 inline constexpr glm::vec2 TEXTURE_SIZES[]{
     [ELF_M]      = {16.0f, 28.0f},
     [ELF_F]      = {15.0f, 18.0f},
-    [BIG_DEMON]  = {10.0f, 10.0f},
+    [BIG_DEMON]  = {32.0f, 36.0f},
     [BIG_ZOMBIE] = {32.0f, 34.0f}
 };
 
 inline constexpr glm::vec2 TEXTURE_SIZES_WEAPONS[]{
-    [WEAPON_FORK] = {12.0f, 26.0f}
+    [WEAPON_FORK] = {12.0f, 26.0f},
+    [WEAPON_KNIFE] = {6.0f, 13.0f} 
 };
 
 inline constexpr f32 ANIMATION_DURATION[] = {

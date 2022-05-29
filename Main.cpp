@@ -41,7 +41,7 @@ void Game::gameInput()
     actionState.attack = ENGINE.getSpecialKeyState(SpecialKeyCode::SPACE);
     actionState.restart = ENGINE.getSpecialKeyState(SpecialKeyCode::RETURN);
     actionState.menuInteract = ENGINE.getMouseButtonState(MouseButtonCode::LEFT_CLICK);
-
+    
     if (ENGINE.getSpecialKeyState(SpecialKeyCode::CTRL) == KeyState::PRESS)
     {
         playerToggleVroom();
@@ -54,7 +54,7 @@ void Game::gameUpdate()
 {
     switch (gameState)
     {
-    case MAIN_MENU:
+        case MAIN_MENU:
         ENGINE.setBlurWholeScreen(false);
         camera.z = 1.0f;
         if (menuButton({0.0f, -ENGINE.getScreenSize().y / 5.0f}, "EXIT"))
@@ -70,15 +70,15 @@ void Game::gameUpdate()
             gameState = GAME_START;
         }
         break;
-
-    case SETTINGS:
+        
+        case SETTINGS:
         if (menuButton({0.0f, 0.0f}, "GO BACK"))
         {
             gameState = MAIN_MENU;
         }
         break;
-
-    case GAME_PAUSED:
+        
+        case GAME_PAUSED:
         ENGINE.setBlurWholeScreen(true);
         deltaTime = 0;
         if (actionState.pauseGame == KeyState::PRESS)
@@ -87,46 +87,46 @@ void Game::gameUpdate()
             ENGINE.setBlurWholeScreen(false);
         }
         break;
-
-    [[unlikely]]
-    case GAME_START:
+        
+        [[unlikely]]
+            case GAME_START:
         ENGINE.setBlurWholeScreen(false);
         memset((char*)this + offsetof(Game, disposableMemory),
-                0,
-                sizeof(Game) - offsetof(Game, disposableMemory));
+               0,
+               sizeof(Game) - offsetof(Game, disposableMemory));
         startGame();
         break;
-
-    [[likely]]
-    case GAME_RUNNING:
+        
+        [[likely]]
+            case GAME_RUNNING:
         if (actionState.pauseGame == KeyState::PRESS)
         {
             gameState = GAME_PAUSED;
             break;
         }
-
+        
         if (actionState.restart == KeyState::PRESS)
         {
             ENGINE.globalFree(map.tiles);
             gameState = GAME_LOST;
             break;
         }
-
+        
         ENGINE.simulateParticles(deltaTime);
-
+        
+        updateFollowers();
         itemPickupSystem();
         velocitySystem();
         handleCombatPhases();
         updateEnemies();
-        updateFollowers();
         updateHealthBars();
         moveProjectiles();
         updatePlayer();
         entityRegistry.removeMarkedEntities();
         break;
-
-    [[unlikely]]
-    case GAME_LOST:
+        
+        [[unlikely]]
+            case GAME_LOST:
         ENGINE.setBlurWholeScreen(true);
         if (menuButton({0.0f, -ENGINE.getScreenSize().y / 5.0f}, "EXIT"))
         {
@@ -147,17 +147,14 @@ void Game::gameUpdate()
 void Game::gameRender()
 {
     ENGINE.beginBatch(camera);
-    switch (gameState)
-    {
-    case GAME_PAUSED:
-        renderItems();
-    case GAME_RUNNING:
-    case GAME_LOST:
+    switch (gameState) {
+        case GAME_PAUSED:
+            renderItems();
+        case GAME_RUNNING:
+        case GAME_LOST:
         renderMap();
         renderSprites();
         ENGINE.drawParticles();
-        if (gameState == GAME_PAUSED)
-            renderItems();
         break;
         case MAIN_MENU:
         case SETTINGS:

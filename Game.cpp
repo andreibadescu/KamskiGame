@@ -119,8 +119,8 @@ class Game {
         
         glm::vec2 roomSize = room.size;
         addEntity(glm::vec2(room.center + roomSize / 4.0f),
-                  BIG_ZOMBIE,
-                  BIG_ZOMBIE_IDLE);
+                  BIG_DEMON,
+                  BIG_DEMON_IDLE);
         
         roomSize = {-room.size.x, room.size.y}; 
         
@@ -144,6 +144,9 @@ class Game {
     
     void handleCombatPhases()
     {
+        static u32 roomIndex = 0;
+        static u64 seed = std::random_device()();
+        
         if(combatPhase == COMBAT_PHASE_ON)
         {
             ComponentVector<EnemyComponent>& enemies = entityRegistry.getComponentVector<EnemyComponent>();
@@ -151,6 +154,27 @@ class Game {
             {
                 //ENDS COMBAT
                 // opens doors and drops item
+                Map::Room room = map.rooms[roomIndex];
+                
+                ItemType type = ITEM_TYPE_WEAPON;//ENGINE.randomRangeU64(0, 3);
+                ItemBit bit = ENGINE.randomRangeU64(seed, 0, 2);
+                AnimationTag aniTag = SWORD;
+                
+                switch(bit)
+                {
+                    case WEAPON_FORK:
+                    {
+                        aniTag = FORK;
+                    }break;
+                    
+                    case WEAPON_SHIELD:
+                    {
+                        aniTag = SHIELD;
+                    }break;    
+                }
+                
+                addItem(room.center, type, bit, aniTag);
+                
                 combatPhase = COMBAT_PHASE_OFF;
             }
         } else
@@ -164,12 +188,14 @@ class Game {
                 if(isCollision(tr.position, map.rooms[i].entranceLeftBottom,
                                col.hitBox, map.quadSize))
                 {
+                    roomIndex = i;
                     enterRoom(i);
                     return;
                 }
                 if(isCollision(tr.position, map.rooms[i].entranceLeftTop,
                                col.hitBox, map.quadSize))
                 {
+                    roomIndex = i;
                     enterRoom(i);
                     return;
                 }
@@ -314,11 +340,11 @@ class Game {
                 switch (bit)
                 {
                     case WEAPON_SHIELD:
-                    return "Shield:\nReduces knockback from enemies by 80%";
+                    return " Shield:\n Reduces knockback from enemies by 80% ";
                     case WEAPON_FORK:
-                    return "Fork:\nAttacks now shoot forks in the cursor's direction";
+                    return " Fork:\n Attacks now shoot forks in the cursor's direction ";
                     case WEAPON_SWORD:
-                    return "Sword:\nAttacks deal extra damage";
+                    return " Sword:\n Attacks deal extra damage ";
                 }
             }break;
 
@@ -346,8 +372,36 @@ class Game {
 
     void renderItems()
     {
-        glm::vec2 itemFrameSize = {125,125};
-        f32 itemCount = 0;
+        // Inventory
+        glm::vec2 itemHolderBackgroundPos = ENGINE.uiTexture(glm::vec2{-260.0f, -200.0f}, glm::vec2{958.0f, 815.0f}, AnchorPoint::C, ID(ITEM_HOLDER_BACKGROUND));
+        ENGINE.drawTextUI(glm::vec2{itemHolderBackgroundPos.x - 250.0f, itemHolderBackgroundPos.y + 450.0f}, 1200.0f, "Inventory");
+        glm::vec2 inventorySlotPos[5*6];
+        for(u32 y=0;y<5;y++)
+            for(u32 x=0;x<6;x++)
+            {
+                inventorySlotPos[y*6 + x] = glm::vec2{itemHolderBackgroundPos.x - 375.0f + x*150.0f, itemHolderBackgroundPos.y + 300.0f - y*150.0f};
+                ENGINE.drawUITex(inventorySlotPos[y*6 + x], glm::vec2{150, 150}, ID(ITEM_HOLDER_INVENTORY));
+            
+            }
+        
+        const EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
+        char buffer[255];
+        
+        //Stats
+        glm::vec2 statsBackgroundPos = ENGINE.uiTexture(glm::vec2{+500.0f, -200.0f}, glm::vec2{479.0f, 815.0f}, AnchorPoint::C, ID(ITEM_HOLDER_BACKGROUND));
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 100.0f, statsBackgroundPos.y + 450.0f}, 1200.0f, "Stats");
+        sprintf(buffer, "Health: %.1f", playerEntity.healthPoints);
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f}, 500.0f, buffer);
+        sprintf(buffer, "Speed: %.1f", playerEntity.movementSpeed);
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*1}, 500.0, buffer);
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*2}, 500.0f, "Stamina: ");
+        sprintf(buffer, "Strength: %.1f", playerEntity.attackPoints);
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*3}, 500.0f, buffer);
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*4}, 500.0f, "Dexterity: ");
+        ENGINE.drawUITex(glm::vec2{statsBackgroundPos.x, statsBackgroundPos.y - 250.0f}, TEXTURE_SIZES[ELF_M]*10.0f, ID(ELF_M_IDLE_0));
+        
+        glm::vec2 itemFrameSize = {100,100};
+        u32 itemCount = 0;
         glm::vec2 buttonSize = {
             ENGINE.getScreenSize().x / 3.0f,
             ENGINE.getScreenSize().y / 6.5f
@@ -357,18 +411,18 @@ class Game {
         {
             if (hasWeapon(i))
             {
-                if (ENGINE.uiButtonHover(glm::vec2(itemFrameSize.x * itemCount, 0),
+                if (ENGINE.uiButtonHover(inventorySlotPos[itemCount],
                                         itemFrameSize,
                                         AnchorPoint::C,
                                         getTextureIdByItem(ITEM_TYPE_WEAPON, i),
                                         getTextureIdByItem(ITEM_TYPE_WEAPON, i)))
                 {
-                    ENGINE.uiButtonText(glm::vec2(cursorPosition.x, (itemFrameSize.y + buttonSize.y) / 2.0f),
-                                        buttonSize,
-                                        AnchorPoint::C,
-                                        ID(BUTTON),
-                                        fontSize,
-                                        getItemDescription(ITEM_TYPE_WEAPON, i));
+                    ENGINE.drawUITex(glm::vec2{cursorPosition.x + buttonSize.x/2, cursorPosition.y + buttonSize.y/2}, buttonSize, ID(BUTTON));
+                    ENGINE.drawTextInsideBoxUI(glm::vec2{cursorPosition.x, cursorPosition.y + buttonSize.y},
+                                               glm::vec2{cursorPosition.x + buttonSize.x, cursorPosition.y},
+                                               fontSize,
+                                               getItemDescription(ITEM_TYPE_WEAPON, i),
+                                               30.0f);
                 }
                 itemCount++;
             }
@@ -378,18 +432,18 @@ class Game {
         {
             if (hasArmour(i))
             {
-                if (ENGINE.uiButtonHover(glm::vec2(itemFrameSize.x * itemCount, 0),
+                if (ENGINE.uiButtonHover(inventorySlotPos[itemCount],
                                         itemFrameSize,
                                         AnchorPoint::C,
                                         getTextureIdByItem(ITEM_TYPE_ARMOUR, i),
                                         getTextureIdByItem(ITEM_TYPE_ARMOUR, i)))
                 {
-                    ENGINE.uiButtonText(glm::vec2(cursorPosition.x, (itemFrameSize.y + buttonSize.y) / 2.0f),
-                                        buttonSize,
-                                        AnchorPoint::C,
-                                        ID(BUTTON),
-                                        fontSize,
-                                        getItemDescription(ITEM_TYPE_ARMOUR, i));
+                    ENGINE.drawUITex(glm::vec2{cursorPosition.x + buttonSize.x/2, cursorPosition.y + buttonSize.y/2}, buttonSize, ID(BUTTON));
+                    ENGINE.drawTextInsideBoxUI(glm::vec2{cursorPosition.x, cursorPosition.y + buttonSize.y},
+                                               glm::vec2{cursorPosition.x + buttonSize.x, cursorPosition.y},
+                                               fontSize,
+                                               getItemDescription(ITEM_TYPE_ARMOUR, i),
+                                               30.0f);
                 }
                 itemCount++;
             }
@@ -399,18 +453,18 @@ class Game {
         {
             if (hasUtility(i))
             {
-                if (ENGINE.uiButtonHover(glm::vec2(itemFrameSize.x * itemCount, 0),
+                if (ENGINE.uiButtonHover(inventorySlotPos[itemCount],
                                         itemFrameSize,
                                         AnchorPoint::C,
                                         getTextureIdByItem(ITEM_TYPE_UTILITY, i),
                                         getTextureIdByItem(ITEM_TYPE_UTILITY, i)))
                 {
-                    ENGINE.uiButtonText(glm::vec2(cursorPosition.x, (itemFrameSize.y + buttonSize.y) / 2.0f),
-                                        buttonSize,
-                                        AnchorPoint::C,
-                                        ID(BUTTON),
-                                        fontSize,
-                                        getItemDescription(ITEM_TYPE_UTILITY, i));
+                    ENGINE.drawUITex(glm::vec2{cursorPosition.x + buttonSize.x/2, cursorPosition.y + buttonSize.y/2}, buttonSize, ID(BUTTON));
+                    ENGINE.drawTextInsideBoxUI(glm::vec2{cursorPosition.x, cursorPosition.y + buttonSize.y},
+                                               glm::vec2{cursorPosition.x + buttonSize.x, cursorPosition.y},
+                                               fontSize,
+                                               getItemDescription(ITEM_TYPE_UTILITY, i),
+                                               30.0f);
                 }
                 itemCount++;
             }
@@ -697,7 +751,8 @@ class Game {
                 {
                 case BIG_DEMON:
                 {
-                    break;
+                        setAnimation(enemySprite, BIG_DEMON_IDLE);
+                        break;
                 }
                 case BIG_ZOMBIE:
                 {
@@ -712,7 +767,8 @@ class Game {
             {
             case BIG_DEMON:
             {
-                break;
+                    setAnimation(enemySprite, BIG_DEMON_RUN);
+                    break;
             }
             case BIG_ZOMBIE:
             {
@@ -776,9 +832,9 @@ class Game {
                                                                  true);
                 entityRegistry.addComponent<TransformComponent>(proj,
                                                                 enemyTransform.position,
-                                                                HIT_BOXES[WEAPON_FORK],
+                                                                HIT_BOXES_WEAPONS[WEAPON_KNIFE],
                                                                 (f32)(atan2(dir.y, dir.x) - PI / 2.0f));
-                entityRegistry.addComponent<SpriteComponent>(proj, FORK);
+                entityRegistry.addComponent<SpriteComponent>(proj, KNIFE);
             }
         }
     }
@@ -856,35 +912,19 @@ class Game {
             
         // Stats bars
         glm::vec2 hudBarsPos = {0.0f,0.0f};
-        hudBarsPos = ENGINE.uiTexture(glm::vec2{20,-20}, glm::vec2{1218, 196}, AnchorPoint::NW, getTextureIdByTag(TextureTag::STATS_UI));
+        hudBarsPos = ENGINE.uiTexture(glm::vec2{20,-20}, glm::vec2{1218, 196}, AnchorPoint::NW, ID(STATS_UI));
         ENGINE.drawQuadUI(glm::vec2{hudBarsPos.x + 72.0f - (maxBarLength - healthBarLength)/2, hudBarsPos.y + 64.0f}, glm::vec2{healthBarLength,22}, glm::vec4{0.9f,0.1f,0.3f,0.8f}, 0.0f);
         ENGINE.drawQuadUI(glm::vec2{hudBarsPos.x + 72.0f, hudBarsPos.y + 0.0f}, glm::vec2{920,22}, glm::vec4{0.1f,0.9f,0.3f,0.8f}, 0.0f);
         ENGINE.drawQuadUI(glm::vec2{hudBarsPos.x - 238.0f, hudBarsPos.y + -64.0f}, glm::vec2{305,22}, glm::vec4{0.4f,0.4f,0.9f,0.8f}, 0.0f);
             
         // Quick access items
-        glm::vec2 hudItemHolderPos = ENGINE.uiTexture(glm::vec2{20, 50}, glm::vec2{45, 84}, AnchorPoint::SW, getTextureIdByTag(TextureTag::ITEM_HOLDER_START));
+        glm::vec2 hudItemHolderPos = ENGINE.uiTexture(glm::vec2{20, 50}, glm::vec2{45, 84}, AnchorPoint::SW, ID(ITEM_HOLDER_START));
         u32 i=0;
         for(i=0;i<4;i++)
         {
-            ENGINE.drawUITex(glm::vec2{195.0f/2 + hudItemHolderPos.x + i*150, hudItemHolderPos.y}, glm::vec2{150, 144}, getTextureIdByTag(TextureTag::ITEM_HOLDER)); 
+            ENGINE.drawUITex(glm::vec2{195.0f/2 + hudItemHolderPos.x + i*150, hudItemHolderPos.y}, glm::vec2{150, 144}, ID(ITEM_HOLDER)); 
         }
-        ENGINE.drawUITex(glm::vec2{45.0f + hudItemHolderPos.x + i*150, hudItemHolderPos.y}, glm::vec2{45, 84}, getTextureIdByTag(TextureTag::ITEM_HOLDER_END));
-            
-        // Inventory
-        glm::vec2 itemHolderBackgroundPos = ENGINE.uiTexture(glm::vec2{-260.0f, -200.0f}, glm::vec2{958.0f, 815.0f}, AnchorPoint::C, getTextureIdByTag(TextureTag::ITEM_HOLDER_BACKGROUND));
-        ENGINE.drawTextUI(glm::vec2{itemHolderBackgroundPos.x - 250.0f, itemHolderBackgroundPos.y + 450.0f}, 1200.0f, "Inventory");
-        for(u32 x=0;x<6;x++)
-            for(u32 y=0;y<5;y++)
-                ENGINE.drawUITex(glm::vec2{itemHolderBackgroundPos.x - 375.0f + x*150.0f, itemHolderBackgroundPos.y + 300.0f - y*150.0f}, glm::vec2{150, 150}, getTextureIdByTag(TextureTag::ITEM_HOLDER_INVENTORY));
-            
-        //Stats
-        glm::vec2 statsBackgroundPos = ENGINE.uiTexture(glm::vec2{+500.0f, -200.0f}, glm::vec2{479.0f, 815.0f}, AnchorPoint::C, getTextureIdByTag(TextureTag::STATS_BACKGROUND));
-        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 100.0f, statsBackgroundPos.y + 450.0f}, 1200.0f, "Stats");
-        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f}, 500.0f, "Health: ");
-        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*1}, 500.0f, "Speed: ");
-        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*2}, 500.0f, "Stamina: ");
-        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*3}, 500.0f, "Strenght: ");
-        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*4}, 500.0f, "Dexterity: ");
+        ENGINE.drawUITex(glm::vec2{45.0f + hudItemHolderPos.x + i*150, hudItemHolderPos.y}, glm::vec2{45, 84}, ID(ITEM_HOLDER_END));
     }
 
     void velocitySystem()
@@ -907,6 +947,7 @@ class Game {
         glm::vec2 playerPos = entityRegistry.getComponent<TransformComponent>(playerEId).position;
 
         addItem(playerPos + glm::vec2(-150, 0), ITEM_TYPE_WEAPON, WEAPON_SHIELD, SHIELD);
+        addItem(playerPos + glm::vec2(150, 0), ITEM_TYPE_WEAPON, WEAPON_SWORD, SWORD);
 
         ENGINE.printGlobalAllocations(false);
         gameState = GAME_RUNNING;
@@ -1242,7 +1283,12 @@ class Game {
     {
         return map.quadSize;
     }
-
+    
+    TextureTag randomFloor(u64& seed)
+    {
+        return (TextureTag)(TAG(FLOOR_1) + ENGINE.randomRangeU64(seed, 0, 2));
+    }
+    
     void generateMapLevel()
     {
         assert(map.size.x >= ROOM.MAX.x && map.size.y >= ROOM.MAX.y);
@@ -1299,7 +1345,7 @@ class Game {
             {
                 for (u32 j = 1; j + 1 < width; ++j)
                 {
-                    map.tiles[leftVerticalAxis + (yPos + i) * map.size.x + j] = TextureTag::FLOOR_1;
+                    map.tiles[leftVerticalAxis + (yPos + i) * map.size.x + j] = randomFloor(seed);
                 }
             }
             glm::uvec2 tileLeftBottom{ leftVerticalAxis + 1, yPos + 1 };
@@ -1309,22 +1355,22 @@ class Game {
             map.rooms[map.roomCount].center = (cornerLeftBottom + cornerRightTop) / 2.0f;
             map.rooms[map.roomCount].size = cornerRightTop - cornerLeftBottom;
             // WALLS
-            map.tiles[leftVerticalAxis + yPos * map.size.x] =  TextureTag::WALL_CORNER_BOTTOM_LEFT;
-            map.tiles[leftVerticalAxis + yPos * map.size.x + width - 1] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
-            map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x] = TextureTag::WALL_CORNER_TOP_LEFT;
-            map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x + width - 1] = TextureTag::WALL_CORNER_TOP_RIGHT;
+            map.tiles[leftVerticalAxis + yPos * map.size.x] =  TextureTag::WALL_LEFT;
+            map.tiles[leftVerticalAxis + yPos * map.size.x + width - 1] = TextureTag::WALL_LEFT;
+            map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x] = TextureTag::WALL_LEFT;
+            map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x + width - 1] = TextureTag::WALL_LEFT;
 
 
             for (u32 i = 1; i + 1 < height; ++i)
             {
                 map.tiles[leftVerticalAxis + (yPos + i) * map.size.x] = TextureTag::WALL_LEFT;
-                map.tiles[leftVerticalAxis + (yPos + i) * map.size.x + width - 1] = TextureTag::WALL_RIGHT;
+                map.tiles[leftVerticalAxis + (yPos + i) * map.size.x + width - 1] = TextureTag::WALL_LEFT;
             }
 
             for (u32 j = 1; j + 1 < width; ++j)
             {
-                map.tiles[leftVerticalAxis + yPos * map.size.x + j] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
-                map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x + j] = TextureTag::WALL_TOP_MID;
+                map.tiles[leftVerticalAxis + yPos * map.size.x + j] = TextureTag::WALL_LEFT;
+                map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x + j] = TextureTag::WALL_LEFT;
             }
 
             // logDebug("Tile: (%u, %u)", leftVerticalAxis + 2, yPos + 2);
@@ -1354,22 +1400,23 @@ class Game {
 
                 u32 baseX = (prevRoomRight + prevLeftVerticalAxis) / 2 + 1;
 
-                map.tiles[startY * map.size.x + baseX - 2] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
-                map.tiles[startY * map.size.x + baseX - 1] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
-                map.tiles[startY * map.size.x + baseX]     = TextureTag::WALL_CORNER_BOTTOM_LEFT;
-                map.tiles[startY * map.size.x + baseX + 1] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
+                map.tiles[startY * map.size.x + baseX - 2] = TextureTag::WALL_LEFT;
+                map.tiles[startY * map.size.x + baseX - 1] = TextureTag::WALL_LEFT;
+                map.tiles[startY * map.size.x + baseX]     = TextureTag::WALL_LEFT;
+                map.tiles[startY * map.size.x + baseX + 1] = TextureTag::WALL_LEFT;
                 for (u32 i = startY + 1; i < stopY; ++i)
                 {
                     map.tiles[i * map.size.x + baseX - 2] = TextureTag::WALL_LEFT;
-                    map.tiles[i * map.size.x + baseX - 1] = TextureTag::FLOOR_1;
-                    map.tiles[i * map.size.x + baseX]     = TextureTag::FLOOR_1;
-                    map.tiles[i * map.size.x + baseX + 1] = TextureTag::WALL_RIGHT;
+                    map.tiles[i * map.size.x + baseX - 1] = randomFloor(seed);
+                    map.tiles[i * map.size.x + baseX]     = randomFloor(seed);
+                    map.tiles[i * map.size.x + baseX + 1] = TextureTag::WALL_LEFT;
                 }
-                map.tiles[stopY * map.size.x + baseX - 2] = TextureTag::WALL_CORNER_TOP_LEFT;
-                map.tiles[stopY * map.size.x + baseX - 1] = TextureTag::WALL_TOP_MID;
-                map.tiles[stopY * map.size.x + baseX]     = TextureTag::WALL_TOP_MID;
-                map.tiles[stopY * map.size.x + baseX + 1] = TextureTag::WALL_CORNER_TOP_RIGHT;
-
+                
+                map.tiles[stopY * map.size.x + baseX - 2] = TextureTag::WALL_LEFT;
+                map.tiles[stopY * map.size.x + baseX - 1] = TextureTag::WALL_LEFT;
+                map.tiles[stopY * map.size.x + baseX]     = TextureTag::WALL_LEFT;
+                map.tiles[stopY * map.size.x + baseX + 1] = TextureTag::WALL_LEFT;
+                
                 // LEFT TUNNEL
                 u32 startX = prevRoomRight;
                 u32 stopX = (prevRoomRight + prevLeftVerticalAxis) / 2 - 1;
@@ -1382,22 +1429,22 @@ class Game {
                 map.rooms[map.roomCount - 1].entranceRightBottom = getCenterPositionByTile({tileLeftBottomEntrance.y, tileLeftBottomEntrance.x});
                 map.rooms[map.roomCount - 1].entranceRightTop = getCenterPositionByTile({tileLeftTopEntrance.y - 1, tileLeftTopEntrance.x - 1});
                 
-                map.tiles[(baseY - 2) * map.size.x + startX] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
+                map.tiles[(baseY - 2) * map.size.x + startX] = TextureTag::WALL_LEFT;
                 //map.walls[map.numberOfWalls++] = getLeftBottomCornerByTile({startX, baseY - 2});
-                map.tiles[(baseY - 1) * map.size.x + startX] = TextureTag::FLOOR_1;
-                map.tiles[ baseY      * map.size.x + startX] = TextureTag::FLOOR_1;
-                map.tiles[(baseY + 1) * map.size.x + startX] = TextureTag::WALL_CORNER_TOP_RIGHT;
+                map.tiles[(baseY - 1) * map.size.x + startX] = randomFloor(seed);
+                map.tiles[ baseY      * map.size.x + startX] = randomFloor(seed);
+                map.tiles[(baseY + 1) * map.size.x + startX] = TextureTag::WALL_LEFT;
                 // left tunnel
                 for (u32 i = startX + 1; i < stopX; ++i)
                 {
-                    map.tiles[(baseY - 2) * map.size.x + i] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
-                    map.tiles[(baseY - 1) * map.size.x + i] = TextureTag::FLOOR_1;
-                    map.tiles[ baseY      * map.size.x + i] = TextureTag::FLOOR_1;
-                    map.tiles[(baseY + 1) * map.size.x + i] = TextureTag::WALL_TOP_MID;
+                    map.tiles[(baseY - 2) * map.size.x + i] = TextureTag::WALL_LEFT;
+                    map.tiles[(baseY - 1) * map.size.x + i] = randomFloor(seed);
+                    map.tiles[ baseY      * map.size.x + i] = randomFloor(seed);
+                    map.tiles[(baseY + 1) * map.size.x + i] = TextureTag::WALL_LEFT;
                 }
                 // end of left tunnel
-                map.tiles[(baseY - 1) * map.size.x + stopX] = TextureTag::FLOOR_1;
-                map.tiles[ baseY      * map.size.x + stopX] = TextureTag::FLOOR_1;
+                map.tiles[(baseY - 1) * map.size.x + stopX] = randomFloor(seed);
+                map.tiles[ baseY      * map.size.x + stopX] = randomFloor(seed);
 
                 // RIGHT TUNNEL
                 baseY = yPos + height / 2;
@@ -1410,21 +1457,21 @@ class Game {
                 map.rooms[map.roomCount].entranceLeftBottom = getCenterPositionByTile({tileRightBottomEntrance.y, tileRightBottomEntrance.x});
                 map.rooms[map.roomCount].entranceLeftTop = getCenterPositionByTile({tileRightTopEntrance.y - 1, tileRightTopEntrance.x - 1});
 
-                map.tiles[(baseY - 2) * map.size.x + stopX] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
-                map.tiles[(baseY - 1) * map.size.x + stopX] = TextureTag::FLOOR_1;
-                map.tiles[ baseY      * map.size.x + stopX] = TextureTag::FLOOR_1;
-                map.tiles[(baseY + 1) * map.size.x + stopX] = TextureTag::WALL_CORNER_TOP_RIGHT;
+                map.tiles[(baseY - 2) * map.size.x + stopX] = TextureTag::WALL_LEFT;
+                map.tiles[(baseY - 1) * map.size.x + stopX] = randomFloor(seed);
+                map.tiles[ baseY      * map.size.x + stopX] = randomFloor(seed);
+                map.tiles[(baseY + 1) * map.size.x + stopX] = TextureTag::WALL_LEFT;
                 // right tunnel
                 for (u32 i = startX; i < stopX; ++i)
                 {
-                    map.tiles[(baseY - 2) * map.size.x + i] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
-                    map.tiles[(baseY - 1) * map.size.x + i] = TextureTag::FLOOR_1;
-                    map.tiles[ baseY      * map.size.x + i] = TextureTag::FLOOR_1;
-                    map.tiles[(baseY + 1) * map.size.x + i] = TextureTag::WALL_TOP_MID;
+                    map.tiles[(baseY - 2) * map.size.x + i] = TextureTag::WALL_LEFT;
+                    map.tiles[(baseY - 1) * map.size.x + i] = randomFloor(seed);
+                    map.tiles[ baseY      * map.size.x + i] = randomFloor(seed);
+                    map.tiles[(baseY + 1) * map.size.x + i] = TextureTag::WALL_LEFT;
                 }
                 // end of right tunnel
-                map.tiles[(baseY - 1) * map.size.x + startX - 1] = TextureTag::FLOOR_1;
-                map.tiles[ baseY      * map.size.x + startX - 1] = TextureTag::FLOOR_1;
+                map.tiles[(baseY - 1) * map.size.x + startX - 1] = randomFloor(seed);
+                map.tiles[ baseY      * map.size.x + startX - 1] = randomFloor(seed);
             }
             else
             {
