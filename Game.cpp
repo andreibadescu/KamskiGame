@@ -853,13 +853,15 @@ class Game {
         const EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
         f32 maxBarLength = 923.0f;
         f32 healthBarLength = maxBarLength/200.0f*playerEntity.healthPoints;
-
+            
+        // Stats bars
         glm::vec2 hudBarsPos = {0.0f,0.0f};
         hudBarsPos = ENGINE.uiTexture(glm::vec2{20,-20}, glm::vec2{1218, 196}, AnchorPoint::NW, getTextureIdByTag(TextureTag::STATS_UI));
         ENGINE.drawQuadUI(glm::vec2{hudBarsPos.x + 72.0f - (maxBarLength - healthBarLength)/2, hudBarsPos.y + 64.0f}, glm::vec2{healthBarLength,22}, glm::vec4{0.9f,0.1f,0.3f,0.8f}, 0.0f);
         ENGINE.drawQuadUI(glm::vec2{hudBarsPos.x + 72.0f, hudBarsPos.y + 0.0f}, glm::vec2{920,22}, glm::vec4{0.1f,0.9f,0.3f,0.8f}, 0.0f);
         ENGINE.drawQuadUI(glm::vec2{hudBarsPos.x - 238.0f, hudBarsPos.y + -64.0f}, glm::vec2{305,22}, glm::vec4{0.4f,0.4f,0.9f,0.8f}, 0.0f);
             
+        // Quick access items
         glm::vec2 hudItemHolderPos = ENGINE.uiTexture(glm::vec2{20, 50}, glm::vec2{45, 84}, AnchorPoint::SW, getTextureIdByTag(TextureTag::ITEM_HOLDER_START));
         u32 i=0;
         for(i=0;i<4;i++)
@@ -868,6 +870,21 @@ class Game {
         }
         ENGINE.drawUITex(glm::vec2{45.0f + hudItemHolderPos.x + i*150, hudItemHolderPos.y}, glm::vec2{45, 84}, getTextureIdByTag(TextureTag::ITEM_HOLDER_END));
             
+        // Inventory
+        glm::vec2 itemHolderBackgroundPos = ENGINE.uiTexture(glm::vec2{-260.0f, -200.0f}, glm::vec2{958.0f, 815.0f}, AnchorPoint::C, getTextureIdByTag(TextureTag::ITEM_HOLDER_BACKGROUND));
+        ENGINE.drawTextUI(glm::vec2{itemHolderBackgroundPos.x - 250.0f, itemHolderBackgroundPos.y + 450.0f}, 1200.0f, "Inventory");
+        for(u32 x=0;x<6;x++)
+            for(u32 y=0;y<5;y++)
+                ENGINE.drawUITex(glm::vec2{itemHolderBackgroundPos.x - 375.0f + x*150.0f, itemHolderBackgroundPos.y + 300.0f - y*150.0f}, glm::vec2{150, 150}, getTextureIdByTag(TextureTag::ITEM_HOLDER_INVENTORY));
+            
+        //Stats
+        glm::vec2 statsBackgroundPos = ENGINE.uiTexture(glm::vec2{+500.0f, -200.0f}, glm::vec2{479.0f, 815.0f}, AnchorPoint::C, getTextureIdByTag(TextureTag::STATS_BACKGROUND));
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 100.0f, statsBackgroundPos.y + 450.0f}, 1200.0f, "Stats");
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f}, 500.0f, "Health: ");
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*1}, 500.0f, "Speed: ");
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*2}, 500.0f, "Stamina: ");
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*3}, 500.0f, "Strenght: ");
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*4}, 500.0f, "Dexterity: ");
     }
 
     void velocitySystem()

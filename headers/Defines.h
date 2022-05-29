@@ -54,6 +54,9 @@ enum class TextureTag: u32
     ITEM_HOLDER_START,
     ITEM_HOLDER_END,
     ITEM_HOLDER,
+    ITEM_HOLDER_BACKGROUND,
+    ITEM_HOLDER_INVENTORY,
+    STATS_BACKGROUND,
 
     WEAPON_START,
     SWORD_0 = WEAPON_START,
@@ -418,7 +421,10 @@ inline const char* TEXTURE_PATHS[] = {
     [TAG(STATS_UI)]                      = UI_ASSET("stats_ui.png"),
     [TAG(ITEM_HOLDER_START)]             = UI_ASSET("item_holder_start.png"),
     [TAG(ITEM_HOLDER_END)]               = UI_ASSET("item_holder_end.png"),
-    [TAG(ITEM_HOLDER)]                   = UI_ASSET("item_holder.png")
+    [TAG(ITEM_HOLDER)]                   = UI_ASSET("item_holder.png"),
+    [TAG(ITEM_HOLDER_BACKGROUND)]        = UI_ASSET("item_holder_background.png"),
+    [TAG(ITEM_HOLDER_INVENTORY)]         = UI_ASSET("item_holder_inventory.png"),
+    [TAG(STATS_BACKGROUND)]              = UI_ASSET("stats_background.png"),
 
     [TAG(SWORD_0)]                       = WEAPON_ASSET("weapon_sword.png"),
     [TAG(SHIELD_0)]                      = WEAPON_ASSET("weapon_shield.png"),
