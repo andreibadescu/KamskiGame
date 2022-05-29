@@ -5,7 +5,7 @@
 class Game {
     public:
     struct Map {
-        texture_id* tiles;
+        TextureTag* tiles;
         // refactor this tilesArr to be cache friendly by also storing the texture id
         // and change uvec2 to vec2 (store the real position, not the relativ position inside the tiles matrix)
         glm::uvec2* tilesArr;
@@ -23,7 +23,7 @@ class Game {
     };
 
     // MEMORY THAT SHOULDN'T BE CHANGED
-    texture_id textureIdsByTag[(u32)TextureTag::COUNT];
+    TextureId textureIdsByTag[(u32)TextureTag::COUNT];
 
     // MEMORY THAT YOU CAN RESET
     union {
@@ -35,7 +35,6 @@ class Game {
             bool isVroomOn;
             glm::vec2 startPosition;
             f32 playerRadius;
-            animation_id* animations;
             States gameState;
             ItemSet itemSet;
             glm::vec2 buttonSize;
@@ -72,76 +71,29 @@ class Game {
 
     void gameRender();
 
-    bool isCollision(const SpriteComponent& A, const SpriteComponent& B)
+    bool isCollision(glm::vec2 posA, glm::vec2 posB,
+                     glm::vec2 sizeA, glm::vec2 sizeB)
     {
-        return (abs(A.position.x - B.position.x) <= A.size.x / 2.0f + B.size.x / 2.0f) &&
-        (abs(A.position.y - B.position.y) <= A.size.y / 2.0f + B.size.y / 2.0f);
+        return (abs(posA.x - posB.x) <= sizeA.x / 2.0f + sizeB.x / 2.0f) &&
+               (abs(posA.y - posB.y) <= sizeA.y / 2.0f + sizeB.y / 2.0f);
     }
 
-    void linkTextureIdByTag(const texture_id id, const TextureTag tag)
+    void linkTextureIdByTag(TextureId id, TextureTag tag)
     {
         textureIdsByTag[static_cast<u32>(tag)] = id;
     }
 
-    texture_id getTextureIdByTag(const TextureTag tag) const
+    TextureId getTextureIdByTag(TextureTag tag) const
     {
         return textureIdsByTag[static_cast<u32>(tag)];
     }
 
-    void updateFollowers()
+    TextureId getTextureIdByTag(u32 tag) const
     {
-        ComponentVector<FollowComponent>& followers = entityRegistry.getComponentVector<FollowComponent>();
-        ComponentVector<SpriteComponent>& sprites = entityRegistry.getComponentVector<SpriteComponent>();
-        ComponentVector<SolidColorComponent>& solidColors = entityRegistry.getComponentVector<SolidColorComponent>();
-
-        for (const Entity followerId: followers.iterateEntities())
-        {
-            const FollowComponent& follower = followers.getComponent(followerId);
-            glm::vec2 toFollowPosition{};
-
-            if (entityRegistry.hasComponent<SpriteComponent>(follower.toFollowId))
-            {
-                toFollowPosition = sprites.getComponent(follower.toFollowId).position;
-            }
-            else if (entityRegistry.hasComponent<SolidColorComponent>(follower.toFollowId))
-            {
-                toFollowPosition = solidColors.getComponent(follower.toFollowId).position;
-            }
-            else
-            {
-                entityRegistry.markEntityForDeletion(followerId);
-                continue;
-            }
-
-            if (solidColors.hasComponent(followerId))
-            {
-                SolidColorComponent& solidColor = solidColors.getComponent(followerId);
-                solidColor.position = toFollowPosition + follower.followOffset;
-            }
-            else
-            {
-                // Handle following sprites
-            }
-        }
-        entityRegistry.removeMarkedEntities();
+        return textureIdsByTag[tag];
     }
 
-    void updateHealthBars()
-    {
-        for (const Entity healthBarId:
-             entityRegistry.iterateEntities<HealthBarComponent,SolidColorComponent, FollowComponent>())
-        {
-            HealthBarComponent& healthBar = entityRegistry.getComponent<HealthBarComponent>(healthBarId);
-            SolidColorComponent& solidColor = entityRegistry.getComponent<SolidColorComponent>(healthBarId);
-            FollowComponent& follower = entityRegistry.getComponent<FollowComponent>(healthBarId);
-
-            const f32 healthPoints = entityRegistry.getComponent<EntityComponent>(follower.toFollowId).healthPoints;
-
-            solidColor.size.x = healthBar.maxSize.x * healthPoints / healthBar.maxHealth;
-        }
-    }
-
-    texture_id getTextureIdByItem(ItemType type, ItemBit bit)
+    TextureId getTextureIdByItem(ItemType type, ItemBit bit)
     {
         TextureTag tag = TextureTag::NONE;
         switch (type)
@@ -151,8 +103,40 @@ class Game {
                 tag = (TextureTag)((u32)TextureTag::WEAPON_START + bit);
             }break;
         }
-
         return getTextureIdByTag(tag);
+    }
+
+    void updateFollowers()
+    {
+        ComponentVector<FollowComponent>& followers = entityRegistry.getComponentVector<FollowComponent>();
+        ComponentVector<TransformComponent>& transforms = entityRegistry.getComponentVector<TransformComponent>();
+
+        for (Entity followerId: followers.iterateEntities())
+        {
+            const FollowComponent& follower = followers.getComponent(followerId);
+            if (!entityRegistry.entityExists(follower.toFollowId))
+            {
+                entityRegistry.markEntityForDeletion(followerId);
+                continue;
+            }
+            TransformComponent& followerTransform = transforms.getComponent(followerId);
+            TransformComponent& toFollowTransform = transforms.getComponent(follower.toFollowId);
+            followerTransform.position = toFollowTransform.position + follower.followOffset;
+        }
+        entityRegistry.removeMarkedEntities();
+    }
+
+    void updateHealthBars()
+    {
+        for (Entity healthBarId: entityRegistry.iterateEntities<HealthBarComponent, TransformComponent, FollowComponent>())
+        {
+            HealthBarComponent& healthBar = entityRegistry.getComponent<HealthBarComponent>(healthBarId);
+            TransformComponent& healthBarComponent = entityRegistry.getComponent<TransformComponent>(healthBarId);
+            FollowComponent& follower = entityRegistry.getComponent<FollowComponent>(healthBarId);
+
+            f32 healthPoints = entityRegistry.getComponent<EntityComponent>(follower.toFollowId).healthPoints;
+            healthBarComponent.size.x = healthBar.maxSize * healthPoints / healthBar.maxHealth;
+        }
     }
 
     const char* getItemDescription(ItemType type, ItemBit bit)
@@ -284,15 +268,17 @@ class Game {
 
     void itemPickupSystem()
     {
-        SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
-        for (Entity eId : entityRegistry.iterateEntities<ItemComponent, SpriteComponent>())
+        TransformComponent& playerSprite = entityRegistry.getComponent<TransformComponent>(playerEId);
+        ColliderComponent& playerCollider = entityRegistry.getComponent<ColliderComponent>(playerEId);
+        for (Entity eId : entityRegistry.iterateEntities<ItemComponent, TransformComponent>())
         {
-            SpriteComponent& sp = entityRegistry.getComponent<SpriteComponent>(eId);
-            if (isCollision(playerSprite, sp))
+            TransformComponent& itemSprite = entityRegistry.getComponent<TransformComponent>(eId);
+            ColliderComponent& itemCollider = entityRegistry.getComponent<ColliderComponent>(eId);
+            if (isCollision(playerSprite.position, itemSprite.position,
+                            playerCollider.hitBox, itemCollider.hitBox))
             {
                 ItemComponent& item = entityRegistry.getComponent<ItemComponent>(eId);
-                logInfo("Before pickup: %d %d %d", itemSet.weapons, itemSet.armours, itemSet.utility);
-
+                //logInfo("Before pickup: %d %d %d", itemSet.weapons, itemSet.armours, itemSet.utility);
                 switch (item.itemType)
                 {
                     case ITEM_TYPE_WEAPON:
@@ -310,93 +296,60 @@ class Game {
                         itemSet.utility|= BIT(item.itemId);
                     }break;
                 }
-
-                logInfo("After pickup: %d %d %d", itemSet.weapons, itemSet.armours, itemSet.utility);
+                //logInfo("After pickup: %d %d %d", itemSet.weapons, itemSet.armours, itemSet.utility);
                 entityRegistry.markEntityForDeletion(eId);
             }
         }
-
         entityRegistry.removeMarkedEntities();
     }
 
-    void addPlayer(const glm::vec2 position, const TextureTag tag,
-                   const f32 movementSpeed, const f32 healthPoints, const f32 attackPoints)
+    void addPlayer(glm::vec2 position, EntityType playerType, AnimationTag animationTag)
     {
-        const Entity eId = entityRegistry.createEntity();
+        Entity eId = entityRegistry.createEntity();
         playerEId = eId;
 
-        camera.z = DEFAULT_CAMERA_ZOOM;
-        camera.x = position.x;
-        camera.y = position.y;
+        camera = {position.x, position.y, DEFAULT_CAMERA_ZOOM};
 
-        playerRadius = calcRadiusOfEntity(TextureTag::PLAYER);
+        playerRadius = calcRadiusOfEntity(playerType);
 
-        entityRegistry.addComponent<SpriteComponent>(eId, position, TEXTURE_SIZES[static_cast<u32>(tag)], getTextureIdByTag(tag));
-        entityRegistry.addComponent<EntityComponent>(eId, movementSpeed, healthPoints, 20.0f);
+        entityRegistry.addComponent<TransformComponent>(eId, position, TEXTURE_SIZES[playerType], 0.0f);
+        entityRegistry.addComponent<TypeComponent>(eId, playerType);
+        entityRegistry.addComponent<ColliderComponent>(eId, HIT_BOXES[playerType]);
+        entityRegistry.addComponent<SpriteComponent>(eId, animationTag);
+        entityRegistry.addComponent<EntityComponent>(eId, ENTITIES_STATS[playerType]);
         entityRegistry.addComponent<VelocityComponent>(eId, glm::vec2{}, glm::vec2{});
-        entityRegistry.addComponent<TagComponent>(eId, TagComponent::PLAYER);
     }
 
-    void addPlayer(glm::vec2 position)
-    {
-        playerEId = addEntity(position, PLAYER);
-
-        camera.z = DEFAULT_CAMERA_ZOOM;
-        camera.x = position.x;
-        camera.y = position.y;
-
-        playerRadius = TEXTURE_SIZES[(u32)ENEMIES_STATS[PLAYER].tag].x / 2.0f;
-    }
-
-    Entity addEntity(const glm::vec2 position, const TextureTag tag,
-                     const f32 movementSpeed, const f32 healthPoints, const f32 attackPoints)
+    void addEntity(glm::vec2 position, EntityType enemyType, AnimationTag animationTag)
     {
         Entity eId = entityRegistry.createEntity();
 
-        entityRegistry.addComponent<SpriteComponent>(eId, position, TEXTURE_SIZES[static_cast<u32>(tag)], getTextureIdByTag(tag));
-        entityRegistry.addComponent<EntityComponent>(eId, movementSpeed, healthPoints, attackPoints);
-        entityRegistry.addComponent<TagComponent>(eId, TagComponent::ENEMY);
-
-        Entity healthBarId = entityRegistry.createEntity();
-
-        entityRegistry.addComponent<SolidColorComponent>(healthBarId, SolidColorComponent{{0, 0}, {TEXTURE_SIZES[(u32)tag].x, HEALTH_BAR_HEIGHT}, {1.0f, 0.0f, 0.0f, 1.0f}});
-        entityRegistry.addComponent<FollowComponent>(healthBarId, FollowComponent{eId, {0, TEXTURE_SIZES[(u32)tag].y / 2.0f + HEALTH_BAR_HEIGHT_OFFSET}});
-        entityRegistry.addComponent<HealthBarComponent>(healthBarId, HealthBarComponent{{TEXTURE_SIZES[static_cast<u32>(tag)].x, 50.0f}, healthPoints});
-
-        return eId;
-    }
-
-    Entity addEntity(glm::vec2 position, EntityStats stats)
-    {
-        Entity eId = entityRegistry.createEntity();
-
-        entityRegistry.addComponent<SpriteComponent>(eId, position, TEXTURE_SIZES[(u32)stats.tag], getTextureIdByTag(stats.tag));
-        entityRegistry.addComponent<EntityComponent>(eId, stats.movementSpeed, stats.healthPoints, stats.attackPoints);
+        entityRegistry.addComponent<TransformComponent>(eId, position, TEXTURE_SIZES[enemyType], 0.0f);
+        entityRegistry.addComponent<TypeComponent>(eId, enemyType);
+        entityRegistry.addComponent<ColliderComponent>(eId, HIT_BOXES[enemyType]);
+        entityRegistry.addComponent<SpriteComponent>(eId, animationTag);
+        entityRegistry.addComponent<EntityComponent>(eId, ENTITIES_STATS[enemyType]);
         entityRegistry.addComponent<EnemyComponent>(eId, EnemyComponent::WALK, (f32)ENGINE.getGameTime());
-        entityRegistry.addComponent<TagComponent>(eId, TagComponent::ENEMY);
 
         Entity healthBarId = entityRegistry.createEntity();
 
-        entityRegistry.addComponent<SolidColorComponent>(
-                                                         healthBarId, SolidColorComponent{{0, 0}, {TEXTURE_SIZES[(u32)stats.tag].x, HEALTH_BAR_HEIGHT}, {1.0f, 0.0f, 0.0f, 1.0f}});
-        entityRegistry.addComponent<FollowComponent>(
-                                                     healthBarId, FollowComponent{eId, {0, TEXTURE_SIZES[(u32)stats.tag].y / 2.0f + HEALTH_BAR_HEIGHT_OFFSET}});
-        entityRegistry.addComponent<HealthBarComponent>(healthBarId, HealthBarComponent{
-                                                            {TEXTURE_SIZES[(u32)stats.tag].x, 50.0f}, stats.healthPoints});
-
-        return eId;
+        entityRegistry.addComponent<TransformComponent>(healthBarId, glm::vec2{0.0f, 0.0f}, glm::vec2{HIT_BOXES[enemyType].x, HEALTH_BAR_HEIGHT}, 0.0f);
+        entityRegistry.addComponent<SolidColorComponent>(healthBarId, glm::vec4{1.0f, 0.0f, 0.0f, 1.0f});
+        entityRegistry.addComponent<FollowComponent>(healthBarId, eId, glm::vec2{0.0f, HIT_BOXES[enemyType].y / 2.0f + HEALTH_BAR_HEIGHT_OFFSET});
+        entityRegistry.addComponent<HealthBarComponent>(healthBarId, HIT_BOXES[enemyType].x, ENTITIES_STATS[enemyType].healthPoints);
     }
 
-    Entity addEntity(glm::vec2 position, EntityType enemyType)
+    void addItem(glm::vec2 position, ItemType type, ItemBit bit, AnimationTag animationTag)
     {
-        return addEntity(position, ENEMIES_STATS[ZOMBIE]);
+        Entity itemEId = entityRegistry.createEntity();
+        entityRegistry.addComponent<TransformComponent>(itemEId, position, glm::vec2{25.0f, 25.0f}, 0.0f);
+        entityRegistry.addComponent<ItemComponent>(itemEId, type, bit);
+        entityRegistry.addComponent<SpriteComponent>(itemEId, animationTag);
+        entityRegistry.addComponent<ColliderComponent>(itemEId, glm::vec2{25.0f, 25.0f});
     }
 
     void updatePlayerPosition()
     {
-        SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
-        EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
-
         if (actionState.zoomIn == KeyState::HOLD)
         {
             camera.z += camera.z * deltaTime;
@@ -417,44 +370,48 @@ class Game {
         if (actionState.walkRight == KeyState::HOLD || actionState.walkRight == KeyState::PRESS)
             direction += glm::vec2{+1.0f, 0.0f};
 
-
+        TransformComponent& playerTransform = entityRegistry.getComponent<TransformComponent>(playerEId);
+        EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
         VelocityComponent& v = entityRegistry.getComponent<VelocityComponent>(playerEId);
         v.targetVel = direction * playerEntity.movementSpeed;
 
-        playerSprite.position = resolveBasePositionCollision(playerSprite.position - v.vel * deltaTime, playerSprite.position, TextureTag::PLAYER);
+        playerTransform.position = resolveBasePositionCollision(playerTransform.position - v.vel * deltaTime, playerTransform.position, ENTITY_TYPE_PLAYER);
         f32 len = glm::length(cursorPosition);
         len = fmax(len, 50);
         glm::vec2 offset = glm::normalize(cursorPosition) * len;
 
-        camera.x = playerSprite.position.x + offset.x / 20.0f;
-        camera.y = playerSprite.position.y + offset.y / 20.0f;
+        camera.x = playerTransform.position.x + offset.x / 20.0f;
+        camera.y = playerTransform.position.y + offset.y / 20.0f;
 
     }
 
     void renderCursor()
     {
-        ENGINE.uiTexture(cursorPosition, {50.0f,50.0f}, AnchorPoint::C, getTextureIdByTag(TextureTag::CIRCLE));
+        ENGINE.uiTexture(cursorPosition, {50.0f,50.0f}, AnchorPoint::C, getTextureIdByTag(TextureTag::MOUSE_POINTER));
     }
 
     void updatePlayerHealth()
     {
-        const SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
+        TransformComponent& playerTransform = entityRegistry.getComponent<TransformComponent>(playerEId);
+        ColliderComponent& playerCollider = entityRegistry.getComponent<ColliderComponent>(playerEId);
         EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
         VelocityComponent& playerVel = entityRegistry.getComponent<VelocityComponent>(playerEId);
 
-        for (const auto& enemyId: entityRegistry.iterateEntities<TagComponent, SpriteComponent, EntityComponent>())
+        for (Entity enemyId: entityRegistry.iterateEntities<TransformComponent, EntityComponent, ColliderComponent>())
         {
-            if (entityRegistry.getComponent<TagComponent>(enemyId) == TagComponent::PLAYER)
+            if (entityRegistry.getComponent<TypeComponent>(enemyId).entityType == ENTITY_TYPE_PLAYER)
                 continue;
-            const SpriteComponent& enemySprite = entityRegistry.getComponent<SpriteComponent>(enemyId);
-            const EntityComponent& enemyEntity = entityRegistry.getComponent<EntityComponent>(enemyId);
 
-            if (isCollision(playerSprite, enemySprite))
+            TransformComponent& enemyTransform = entityRegistry.getComponent<TransformComponent>(enemyId);
+            ColliderComponent& enemyCollider = entityRegistry.getComponent<ColliderComponent>(playerEId);
+            if (isCollision(playerTransform.position, enemyTransform.position,
+                            playerCollider.hitBox, enemyCollider.hitBox))
             {
                 f32 armourCount = (f32)(hasArmour(ARMOUR_CHESTPLATE) + hasArmour(ARMOUR_HELMET) + hasArmour(ARMOUR_PANTS));
-                playerEntity.healthPoints -= enemyEntity.attackPoints / (1.0f + armourCount);
+                f32 enemyAttackPoints = entityRegistry.getComponent<EntityComponent>(enemyId).attackPoints;
+                playerEntity.healthPoints -= enemyAttackPoints / (1.0f + armourCount);
 
-                glm::vec2 dir = glm::normalize(playerSprite.position - enemySprite.position);
+                glm::vec2 dir = glm::normalize(playerTransform.position - enemyTransform.position);
                 if (hasWeapon(WEAPON_SHIELD))
                     playerVel.vel += dir * 100.0f;
                 else
@@ -480,23 +437,27 @@ class Game {
         {
             return;
         }
-
-
-        if (hasWeapon(WEAPON_FORK))
+//        if (hasWeapon(WEAPON_FORK))
         {
             playerAttackTimer = 0.4f - (0.3f * (f32)hasUtility(UTILITY_POTION));
             // cursorPosition is not affected by the camera position in calculations.
             //To convert cursorPosition to actual world Position you have to add the camera position to it
             EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
-            TagComponent tag = entityRegistry.getComponent<TagComponent>(playerEId);
-            const Entity projectileId = entityRegistry.createEntity();
-            const glm::vec2 directionVector = glm::normalize(cursorPosition + glm::vec2{camera.x, camera.y} - entityRegistry.getComponent<SpriteComponent>(playerEId).position);
-            entityRegistry.addComponent<ProjectileComponent>(projectileId, directionVector, 400.0f, playerEntity.attackPoints + (50.0f * (f32)hasWeapon(WEAPON_SWORD)), false);
-            entityRegistry.addComponent<SpriteComponent>(projectileId,
-                                                         entityRegistry.getComponent<SpriteComponent>(playerEId).position,
-                                                         TEXTURE_SIZES[static_cast<u32>(TextureTag::PROJECTILE)],
-                                                         getTextureIdByTag(TextureTag::PROJECTILE),
-                                                         (f32)(atan2(directionVector.y, directionVector.x) - PI / 2.0f));
+
+            Entity projectileId = entityRegistry.createEntity();
+            glm::vec2 playerPos = entityRegistry.getComponent<TransformComponent>(playerEId).position;
+            glm::vec2 directionVector = glm::normalize(cursorPosition + glm::vec2{camera.x, camera.y} - playerPos);
+
+            entityRegistry.addComponent<ProjectileComponent>(projectileId, directionVector, 400.0f,
+                playerEntity.attackPoints + (50.0f * (f32)hasWeapon(WEAPON_SWORD)), false);
+
+            entityRegistry.addComponent<TransformComponent>(projectileId, playerPos, TEXTURE_SIZES_WEAPONS[WEAPON_FORK],
+                (f32)(atan2(directionVector.y, directionVector.x) - PI / 2.0f));
+
+            // TO-DO collision with hitbox
+            // entityRegistry.addComponent<ColliderComponent>();
+
+            entityRegistry.addComponent<SpriteComponent>(projectileId, FORK);
         }
     }
 
@@ -517,21 +478,22 @@ class Game {
             {
                 enemy.phase = EnemyComponent::SHOOT;
                 enemy.startTime = time;
-            }else if (enemy.phase == EnemyComponent::WAIT && time - enemy.startTime > 1.0f)
+            }
+            else if (enemy.phase == EnemyComponent::WAIT && time - enemy.startTime > 1.0f)
             {
                 enemy.phase = EnemyComponent::WALK;
                 enemy.startTime = time;
             }
         }
 
-        const SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
+        const TransformComponent& playerTransform = entityRegistry.getComponent<TransformComponent>(playerEId);
 
-        for (const auto& enemyEntityId: entityRegistry.iterateEntities<SpriteComponent, EntityComponent, TagComponent>())
+        for (Entity enemyEntityId: entityRegistry.iterateEntities<TransformComponent, EntityComponent>())
         {
-            SpriteComponent& enemySprite = entityRegistry.getComponent<SpriteComponent>(enemyEntityId);
-            const glm::vec2 enemyVector{
-                enemySprite.position.x - playerSprite.position.x,
-                enemySprite.position.y - playerSprite.position.y
+            TransformComponent& enemyTransform = entityRegistry.getComponent<TransformComponent>(enemyEntityId);
+            glm::vec2 enemyVector{
+                enemyTransform.position.x - playerTransform.position.x,
+                enemyTransform.position.y - playerTransform.position.y
             };
 
             if (glm::length(enemyVector) > ENEMY_DETECTION_RADIUS)
@@ -539,108 +501,119 @@ class Game {
                 continue;
             }
 
-            if (entityRegistry.getComponent<TagComponent>(enemyEntityId) == TagComponent::PLAYER)
+            if (enemyEntityId == playerEId)
             {
                 continue;
             }
 
-            const glm::vec2 normalizedEnemyVector = glm::normalize(enemyVector);
+            glm::vec2 normalizedEnemyVector = glm::normalize(enemyVector);
             EntityComponent& enemyEntity = entityRegistry.getComponent<EntityComponent>(enemyEntityId);
             EnemyComponent& enemy = entityRegistry.getComponent<EnemyComponent>(enemyEntityId);
+            ColliderComponent& enemyCollider = entityRegistry.getComponent<ColliderComponent>(enemyEntityId);
             if (enemy.phase == EnemyComponent::WALK)
             {
-                const f32 distance = deltaTime * enemyEntity.movementSpeed;
+                f32 distance = deltaTime * enemyEntity.movementSpeed;
 
-                const glm::vec2 nextPosition{
-                    enemySprite.position.x - normalizedEnemyVector.x * distance,
-                    enemySprite.position.y - normalizedEnemyVector.y * distance
+                glm::vec2 nextPosition{
+                    enemyTransform.position.x - normalizedEnemyVector.x * distance,
+                    enemyTransform.position.y - normalizedEnemyVector.y * distance
                 };
-                glm::vec2 newPosition = resolveBasePositionCollision(enemySprite.position, nextPosition, TextureTag::ENEMY);
+                EntityType enemyType = entityRegistry.getComponent<TypeComponent>(enemyEntityId).entityType;
+                glm::vec2 newPosition = resolveBasePositionCollision(enemyTransform.position, nextPosition, enemyType);
 
                 // collision with player
                 const glm::vec2 vectorBetween{
-                    playerSprite.position.x - newPosition.x,
-                    playerSprite.position.y - newPosition.y
+                    playerTransform.position.x - newPosition.x,
+                    playerTransform.position.y - newPosition.y
                 };
 
-                const f32 distanceBetween = glm::length(vectorBetween);
+                // const f32 distanceBetween = glm::length(vectorBetween);
 
-                enemySprite.position.x = newPosition.x;
-                enemySprite.position.y = newPosition.y;
-            } else if (enemy.phase == EnemyComponent::SHOOT)
+                enemyTransform.position.x = newPosition.x;
+                enemyTransform.position.y = newPosition.y;
+            }
+            else if (enemy.phase == EnemyComponent::SHOOT)
             {
                 enemy.phase = EnemyComponent::WAIT;
                 Entity proj = entityRegistry.createEntity();
-                glm::vec2 dir = glm::normalize(playerSprite.position - enemySprite.position);
+                glm::vec2 dir = glm::normalize(playerTransform.position - enemyTransform.position);
                 entityRegistry.addComponent<ProjectileComponent>(proj,
                                                                  dir,
                                                                  250.0f,
                                                                  enemyEntity.attackPoints,
                                                                  true);
-                entityRegistry.addComponent<SpriteComponent>(proj,
-                                                             enemySprite.position,
-                                                             TEXTURE_SIZES[static_cast<u32>(TextureTag::PROJECTILE)],
-                                                             getTextureIdByTag(TextureTag::PROJECTILE),
-                                                             (f32)(atan2(dir.y, dir.x) - PI / 2.0f));
+                entityRegistry.addComponent<TransformComponent>(proj,
+                                                                enemyTransform.position,
+                                                                TEXTURE_SIZES_WEAPONS[WEAPON_FORK],
+                                                                (f32)(atan2(dir.y, dir.x) - PI / 2.0f));
+                entityRegistry.addComponent<SpriteComponent>(proj, FORK);
             }
         }
     }
 
-    void renderSprites() const
+    void renderSprites()
     {
         u32 cnt = 0;
-        const ComponentVector<SpriteComponent>& sprites = entityRegistry.getComponentVector<SpriteComponent>();
-        Entity* const sortedEntityIdsArray = static_cast<Entity*>(ENGINE.temporaryAlloc(sprites.size() * sizeof(Entity)));
+        ComponentVector<SpriteComponent>& sprites = entityRegistry.getComponentVector<SpriteComponent>();
+        Entity* entityIds = (Entity*)(ENGINE.temporaryAlloc(sprites.size() * sizeof(Entity)));
 
-        for (const Entity entityId: sprites.iterateEntities())
+        for (Entity entityId: sprites.iterateEntities())
         {
-            sortedEntityIdsArray[cnt++] = entityId;
+            entityIds[cnt++] = entityId;
         }
+        logDebug("Cnt: %u", cnt);
 
-        std::sort(sortedEntityIdsArray, sortedEntityIdsArray + cnt, [this](const Entity A, const Entity B)
-                  {
-                      const f32 aY = entityRegistry.getComponent<SpriteComponent>(A).position.y;
-                      const f32 bY = entityRegistry.getComponent<SpriteComponent>(B).position.y;
-                      return aY > bY;
-                  });
+        std::sort(entityIds, entityIds + cnt, [this](const Entity A, const Entity B)
+        {
+            const f32 aY = entityRegistry.getComponent<TransformComponent>(A).position.y;
+            const f32 bY = entityRegistry.getComponent<TransformComponent>(B).position.y;
+            return aY > bY;
+        });
 
-        const SpriteComponent& playerSprite = sprites.getComponent(playerEId);
+        SpriteComponent playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
+        TextureId playerTextureId = ENGINE.getAnimationFrame(playerSprite.animation, playerSprite.startTime);
+        TransformComponent playerTransform = entityRegistry.getComponent<TransformComponent>(playerEId);
         for (u32 i = 0; i < cnt; ++i)
         {
-            SpriteComponent sprite = sprites.getComponent(sortedEntityIdsArray[i]);
-            if (sprite.textureId == getTextureIdByTag(TextureTag::PLAYER))
+            SpriteComponent entitySprite = entityRegistry.getComponent<SpriteComponent>(entityIds[i]);
+            TextureId textureId = ENGINE.getAnimationFrame(entitySprite.animation, entitySprite.startTime);
+            TransformComponent entityTransform = entityRegistry.getComponent<TransformComponent>(entityIds[i]);
+            if (playerTextureId == textureId)
             {
                 if (cursorPosition.x < 0)
                 {
-                    sprite.size.x = -abs(sprite.size.x);
+                    playerTransform.size.x = -abs(playerTransform.size.x);
                 }
                 else
                 {
-                    sprite.size.x = abs(sprite.size.x);
+                    playerTransform.size.x = abs(playerTransform.size.x);
                 }
             }
-            else if (sprite.textureId == getTextureIdByTag(TextureTag::ENEMY))
+            // it's not item
+            else if (entityRegistry.hasComponent<TypeComponent>(entityIds[i]))
             {
-                if (playerSprite.position.x < sprite.position.x)
+                if (entityIds[i] != playerEId)
                 {
-                    sprite.size.x = -abs(sprite.size.x);
-                }
-                else
-                {
-                    sprite.size.x = abs(sprite.size.x);
+                    if (playerTransform.position.x < entityTransform.position.x)
+                    {
+                        entityTransform.size.x = -abs(entityTransform.size.x);
+                    }
+                    else
+                    {
+                        entityTransform.size.x = abs(entityTransform.size.x);
+                    }
                 }
             }
-            ENGINE.drawTexturedQuad(sprite.position, sprite.size, sprite.textureId, sprite.rotation);
+            ENGINE.drawTexturedQuad(entityTransform.position, entityTransform.size, textureId, entityTransform.rotation);
         }
-        ENGINE.addLight(sprites.getComponent(playerEId).position, 100.0f, {1.0f, 1.0f, 1.0f, 1.0f});
 
-        // Uncomment this if you want the player to be rendered over every other sprite
-        //const SpriteComponent playerSprite = sprites.getComponent(PLAYER_ID);
-        //draw({ playerSprite.x, playerSprite.y }, getQuadSize() *= 2, playerSprite.textureId);
+        ENGINE.addLight(playerTransform.position, 100.0f, {1.0f, 1.0f, 1.0f, 1.0f});
 
-        for (const SolidColorComponent& solidColor: entityRegistry.iterateComponents<SolidColorComponent>())
+        for (Entity colorId: entityRegistry.iterateEntities<SolidColorComponent, TransformComponent>())
         {
-            ENGINE.drawColoredQuad(solidColor.position, solidColor.size, solidColor.color, solidColor.rotation);
+            TransformComponent& colorTransform = entityRegistry.getComponent<TransformComponent>(colorId);
+            glm::vec4 color = entityRegistry.getComponent<SolidColorComponent>(colorId).color;
+            ENGINE.drawColoredQuad(colorTransform.position, colorTransform.size, color, colorTransform.rotation);
         }
     }
 
@@ -649,41 +622,21 @@ class Game {
         for (Entity vEid: entityRegistry.iterateEntities<VelocityComponent>())
         {
             VelocityComponent& v = entityRegistry.getComponent<VelocityComponent>(vEid);
-            SpriteComponent& sp = entityRegistry.getComponent<SpriteComponent>(vEid);
+            TransformComponent& t = entityRegistry.getComponent<TransformComponent>(vEid);
             v.vel += (v.targetVel - v.vel) * 20.0f * deltaTime;
-            sp.position += v.vel * deltaTime;
+            t.position += v.vel * deltaTime;
         }
     }
 
     void startGame()
     {
-        init(MAP_SIZE_X, MAP_SIZE_Y);
-        addPlayer(startPosition, TextureTag::PLAYER, DEFAULT_PLAYER_SPEED, 200, 50);
-
-        animations = (animation_id*)ENGINE.globalAlloc(sizeof(animation_id) * ANIMATION_STATE_COUNT);
-        // for (u32 i = 0; i < ANIMATION_STATE_COUNT; ++i)
-        // {
-        //     GAME->animations[i] = ANIMATION->createAnimation(textureIds, ARRAY_COUNT(textureIds), 0.2f);
-        // }
-
+        initMap(MAP_SIZE_X, MAP_SIZE_Y);
+        addPlayer(startPosition, ENTITY_TYPE_PLAYER, ELF_M_IDLE);
         updateFollowers();
 
-        SpriteComponent& playerSp = entityRegistry.getComponent<SpriteComponent>(playerEId);
+        glm::vec2 playerPos = entityRegistry.getComponent<TransformComponent>(playerEId).position;
 
-        Entity itemEId = entityRegistry.createEntity();
-
-        entityRegistry.addComponent<ItemComponent>(itemEId, ITEM_TYPE_WEAPON, WEAPON_FORK);
-        entityRegistry.addComponent<SpriteComponent>(itemEId, playerSp.position + glm::vec2(150, 0), glm::vec2(25, 25), getTextureIdByTag(TextureTag::FORK));
-
-        itemEId = entityRegistry.createEntity();
-
-        entityRegistry.addComponent<ItemComponent>(itemEId, ITEM_TYPE_WEAPON, WEAPON_SHIELD);
-        entityRegistry.addComponent<SpriteComponent>(itemEId, playerSp.position + glm::vec2(-150, 0), glm::vec2(25, 25), getTextureIdByTag(TextureTag::SHIELD));
-
-        itemEId = entityRegistry.createEntity();
-
-        entityRegistry.addComponent<ItemComponent>(itemEId, ITEM_TYPE_WEAPON, WEAPON_SWORD);
-        entityRegistry.addComponent<SpriteComponent>(itemEId, playerSp.position + glm::vec2(0, 150), glm::vec2(25, 25), getTextureIdByTag(TextureTag::SWORD));
+        addItem(playerPos + glm::vec2(-150, 0), ITEM_TYPE_WEAPON, WEAPON_SHIELD, SHIELD);
 
         ENGINE.printGlobalAllocations(false);
         gameState = GAME_RUNNING;
@@ -691,9 +644,9 @@ class Game {
 
     void moveProjectiles()
     {
-        for (const auto& projectileId : entityRegistry.iterateEntities<SpriteComponent, ProjectileComponent>())
+        for (Entity projectileId: entityRegistry.iterateEntities<TransformComponent, ProjectileComponent>())
         {
-            SpriteComponent& projectileSprite = entityRegistry.getComponent<SpriteComponent>(projectileId);
+            TransformComponent& projectileSprite = entityRegistry.getComponent<TransformComponent>(projectileId);
             ProjectileComponent& projectile = entityRegistry.getComponent<ProjectileComponent>(projectileId);
             projectileSprite.position += projectile.direction * projectile.speed * deltaTime;
 
@@ -703,23 +656,24 @@ class Game {
                 continue;
             }
 
-            for (const auto& enemyId: entityRegistry.iterateEntities<SpriteComponent, EntityComponent, TagComponent>())
+            for (Entity enemyId: entityRegistry.iterateEntities<ColliderComponent, TransformComponent, EntityComponent, TypeComponent>())
             {
-                if (entityRegistry.getComponent<TagComponent>(enemyId) == TagComponent::ENEMY && projectile.isEnemy ||
-                    entityRegistry.getComponent<TagComponent>(enemyId) == TagComponent::PLAYER && !projectile.isEnemy)
+                TypeComponent& enemyCollider = entityRegistry.getComponent<TypeComponent>(enemyId);
+                if ((enemyCollider.entityType != ENTITY_TYPE_PLAYER && projectile.isEnemy) ||
+                    (enemyCollider.entityType == ENTITY_TYPE_PLAYER && !projectile.isEnemy))
                     continue;
 
-                const SpriteComponent& enemySprite = entityRegistry.getComponent<SpriteComponent>(enemyId);
-                const f32 distanceBetween = glm::distance(enemySprite.position, projectileSprite.position);
+                TransformComponent& enemySprite = entityRegistry.getComponent<TransformComponent>(enemyId);
+                f32 distanceBetween = glm::distance(enemySprite.position, projectileSprite.position);
                 if (distanceBetween <= std::min(enemySprite.size.x, enemySprite.size.y) / 2)
                     //if (isCollision(enemySprite, projectileSprite))
                 {
                     ProjectileComponent& proj = entityRegistry.getComponent<ProjectileComponent>(projectileId);
                     // subtract shooter's attack from enemy's health
-                    entityRegistry.getComponent<EntityComponent>(enemyId).healthPoints -=
-                        projectile.damage;
+                    EntityComponent& entityStats = entityRegistry.getComponent<EntityComponent>(enemyId);
+                    entityStats.healthPoints -= projectile.damage;
 
-                    if (entityRegistry.getComponent<EntityComponent>(enemyId).healthPoints <= 0.0f)
+                    if (entityStats.healthPoints <= 0.0f)
                     {
                         entityRegistry.markEntityForDeletion(enemyId);
                         if (enemyId == playerEId)
@@ -798,37 +752,37 @@ class Game {
 
     glm::vec2 getPlayerSpritePosition() const
     {
-        return entityRegistry.getComponent<SpriteComponent>(playerEId).position;
+        return entityRegistry.getComponent<TransformComponent>(playerEId).position;
     }
 
     // position used for collisions
     glm::vec2 getPlayerBasePosition() const
     {
-        assert(TEXTURE_SIZES[TAG(PLAYER)].x <= TEXTURE_SIZES[TAG(PLAYER)].y && "Ratia texturii (x/y) playerului este prea mare");
+        assert(HIT_BOXES[ENTITY_TYPE_PLAYER].x <= HIT_BOXES[ENTITY_TYPE_PLAYER].y && "Ratia texturii (x/y) playerului este prea mare");
         glm::vec2 spritePos = getPlayerSpritePosition();
-        return {spritePos.x, spritePos.y - (TEXTURE_SIZES[TAG(PLAYER)].y - TEXTURE_SIZES[TAG(PLAYER)].x) / 2};
+        return {spritePos.x, spritePos.y - (HIT_BOXES[ENTITY_TYPE_PLAYER].y - HIT_BOXES[ENTITY_TYPE_PLAYER].x) / 2};
     }
 
     // position used for collisions
-    glm::vec2 getBasePosition(glm::vec2 spritePos, TextureTag tag) const
+    glm::vec2 getBasePosition(glm::vec2 spritePos, EntityType type) const
     {
-        assert(TEXTURE_SIZES[(u32)tag].x <= TEXTURE_SIZES[(u32)tag].y && "Ratia texturii (x/y) este prea mare");
-        return {spritePos.x, spritePos.y - (TEXTURE_SIZES[(u32)tag].y - TEXTURE_SIZES[(u32)tag].x) / 2};
+        assert(HIT_BOXES[type].x <= HIT_BOXES[type].y && "Ratia texturii (x/y) este prea mare");
+        return {spritePos.x, spritePos.y - (HIT_BOXES[type].y - HIT_BOXES[type].x) / 2.0f};
     }
 
     glm::vec2 playerBaseToSpritePosition(glm::vec2 basePosition) const
     {
-        return {basePosition.x, basePosition.y + (TEXTURE_SIZES[TAG(PLAYER)].y - TEXTURE_SIZES[TAG(PLAYER)].x) / 2};
+        return {basePosition.x, basePosition.y + (HIT_BOXES[ENTITY_TYPE_PLAYER].y - HIT_BOXES[ENTITY_TYPE_PLAYER].x) / 2.0f};
     }
 
-    glm::vec2 baseToSpritePosition(glm::vec2 basePosition, TextureTag tag) const
+    glm::vec2 baseToSpritePosition(glm::vec2 basePosition, EntityType type) const
     {
-        return {basePosition.x, basePosition.y + (TEXTURE_SIZES[(u32)tag].y - TEXTURE_SIZES[(u32)tag].x) / 2};
+        return {basePosition.x, basePosition.y + (HIT_BOXES[type].y - HIT_BOXES[type].x) / 2.0f};
     }
 
-    f32 calcRadiusOfEntity(TextureTag tag)
+    f32 calcRadiusOfEntity(EntityType type)
     {
-        return TEXTURE_SIZES[(u32)tag].x / 2.0f;
+        return HIT_BOXES[type].x / 2.0f;
     }
 
     void resolveCollision(glm::vec2 oldPos, glm::vec2& pos, u32 radius)
@@ -841,8 +795,8 @@ class Game {
             for (u32 j = tile.x - 1; j <= tile.x + 1; ++j)
             {
                 u32 tileIndex = i * map.size.x + j;
-                if (map.tiles[tileIndex] >= getTextureIdByTag(TextureTag::COLLISION_START) &&
-                    map.tiles[tileIndex] <= getTextureIdByTag(TextureTag::COLLISION_END))
+                if (map.tiles[tileIndex] >= TextureTag::COLLISION_START &&
+                    map.tiles[tileIndex] <= TextureTag::COLLISION_END)
                 {
                     glm::uvec2 tile{j,i};
                     glm::vec2 leftBottomCorner = getLeftBottomCornerByTile(tile);
@@ -868,17 +822,17 @@ class Game {
         }
     }
 
-    glm::vec2 Game::resolveBasePositionCollision(glm::vec2 oldPosition, glm::vec2 position, TextureTag tag)
+    glm::vec2 Game::resolveBasePositionCollision(glm::vec2 oldPosition, glm::vec2 position, EntityType type)
     {
-        glm::vec2 basePos = getBasePosition(position, tag);
-        resolveCollision(getBasePosition(oldPosition, tag), basePos, calcRadiusOfEntity(tag));
-        return baseToSpritePosition(basePos, tag);
+        glm::vec2 basePos = getBasePosition(position, type);
+        resolveCollision(getBasePosition(oldPosition, type), basePos, calcRadiusOfEntity(type));
+        return baseToSpritePosition(basePos, type);
     }
 
     bool checkFillTile(bool* mat, u32 tileIndex) const
     {
         // return !mat[tileIndex] && map.tiles[tileIndex] >= ID(WALL) && map.tiles[tileIndex] <= ID(WALL_CORNER_TOP_RIGHT);
-        return map.tiles[tileIndex] >= ID(WALL) && map.tiles[tileIndex] <= ID(WALL_CORNER_TOP_RIGHT);
+        return map.tiles[tileIndex] >= TextureTag::WALL && map.tiles[tileIndex] <= TextureTag::WALL_CORNER_TOP_RIGHT;
     }
 
     bool fillUtilX(bool* mat, i32 tileX, i32 tileY)
@@ -965,16 +919,16 @@ class Game {
         ENGINE.globalFree(mat);
     }
 
-    void init(const u32 sizeX, const u32 sizeY)
+    void initMap(const u32 sizeX, const u32 sizeY)
     {
         map.size.x = sizeX;
         map.size.y = sizeY;
-        map.tiles = (texture_id*)ENGINE.globalAlloc(sizeof(texture_id) * sizeY * sizeX);
+        map.tiles = (TextureTag*)ENGINE.globalAlloc(sizeof(TextureTag) * sizeY * sizeX);
         map.walls = (Map::Wall*)ENGINE.globalAlloc(sizeof(Map::Wall) * MAX_WALLS);
         map.numberOfWalls = 0;
         for (u32 i = 0; i < sizeY * sizeX; ++i)
         {
-            map.tiles[i] = ID(NONE);
+            map.tiles[i] = TextureTag::NONE;
         }
         map.quadSize = {QUAD_SIZE, QUAD_SIZE};
         generateMapLevel();
@@ -991,7 +945,7 @@ class Game {
         return glm::vec2((f32)tile.x, (f32)tile.y) * map.quadSize;
     }
 
-    void render() const
+    void renderMap() const
     {
         for (u32 i = 0; i < map.tilesArrSize; ++i)
         {
@@ -999,7 +953,7 @@ class Game {
             glm::uvec2 tile = map.tilesArr[i];
             glm::vec2 position = getCenterPositionByTile(tile);
             u32 tileIndex = tile.y * map.size.x + tile.x;
-            ENGINE.drawTexturedQuad(position, map.quadSize, map.tiles[tileIndex], 0);
+            ENGINE.drawTexturedQuad(position, map.quadSize, getTextureIdByTag(map.tiles[tileIndex]), 0);
         }
         // logDebug("Nr: %d", map.numberOfWalls);
         for (u32 i = 0; i < map.numberOfWalls; ++i)
@@ -1074,15 +1028,15 @@ class Game {
             {
                 for (u32 j = 1; j + 1 < width; ++j)
                 {
-                    map.tiles[leftVerticalAxis + (yPos + i) * map.size.x + j] = ID(FLOOR);
+                    map.tiles[leftVerticalAxis + (yPos + i) * map.size.x + j] = TextureTag::FLOOR_1;
                 }
             }
 
             // WALLS
-            map.tiles[leftVerticalAxis + yPos * map.size.x] =  ID(WALL_CORNER_BOTTOM_LEFT);
-            map.tiles[leftVerticalAxis + yPos * map.size.x + width - 1] = ID(WALL_CORNER_BOTTOM_RIGHT);
-            map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x] = ID(WALL_CORNER_TOP_LEFT);
-            map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x + width - 1] = ID(WALL_CORNER_TOP_RIGHT);
+            map.tiles[leftVerticalAxis + yPos * map.size.x] =  TextureTag::WALL_CORNER_BOTTOM_LEFT;
+            map.tiles[leftVerticalAxis + yPos * map.size.x + width - 1] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
+            map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x] = TextureTag::WALL_CORNER_TOP_LEFT;
+            map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x + width - 1] = TextureTag::WALL_CORNER_TOP_RIGHT;
 
             // // bottom
             // map.walls[map.numberOfWalls++] = {
@@ -1107,14 +1061,14 @@ class Game {
 
             for (u32 i = 1; i + 1 < height; ++i)
             {
-                map.tiles[leftVerticalAxis + (yPos + i) * map.size.x] = ID(WALL_LEFT);
-                map.tiles[leftVerticalAxis + (yPos + i) * map.size.x + width - 1] = ID(WALL_RIGHT);
+                map.tiles[leftVerticalAxis + (yPos + i) * map.size.x] = TextureTag::WALL_LEFT;
+                map.tiles[leftVerticalAxis + (yPos + i) * map.size.x + width - 1] = TextureTag::WALL_RIGHT;
             }
 
             for (u32 j = 1; j + 1 < width; ++j)
             {
-                map.tiles[leftVerticalAxis + yPos * map.size.x + j] = ID(WALL_BOTTOM);
-                map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x + j] = ID(WALL_TOP);
+                map.tiles[leftVerticalAxis + yPos * map.size.x + j] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
+                map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x + j] = TextureTag::WALL_TOP_MID;
             }
 
             // logDebug("Tile: (%u, %u)", leftVerticalAxis + 2, yPos + 2);
@@ -1128,23 +1082,27 @@ class Game {
             addEntity(
                       baseToSpritePosition(
                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 3, yPos + 3}),
-                                           ENEMIES_STATS[ZOMBIE].tag),
-                      ZOMBIE);
+                                           BIG_ZOMBIE),
+                      BIG_ZOMBIE,
+                      BIG_ZOMBIE_IDLE);
             addEntity(
                       baseToSpritePosition(
                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + width - 4, yPos + 3}),
-                                           ENEMIES_STATS[ZOMBIE].tag),
-                      ZOMBIE);
+                                           BIG_ZOMBIE),
+                      BIG_ZOMBIE,
+                      BIG_ZOMBIE_IDLE);
             addEntity(
                       baseToSpritePosition(
                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 3, yPos + height - 4}),
-                                           ENEMIES_STATS[ZOMBIE].tag),
-                      ZOMBIE);
+                                           BIG_ZOMBIE),
+                      BIG_ZOMBIE,
+                      BIG_ZOMBIE_IDLE);
             addEntity(
                       baseToSpritePosition(
                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + width - 4, yPos + height - 4}),
-                                           ENEMIES_STATS[ZOMBIE].tag),
-                      ZOMBIE);
+                                           BIG_ZOMBIE),
+                      BIG_ZOMBIE,
+                      BIG_ZOMBIE_IDLE);
 
             const u32 prevRoomRight = roomRight;
             roomRight = leftVerticalAxis + width - 1;
@@ -1164,64 +1122,64 @@ class Game {
 
                 u32 baseX = (prevRoomRight + prevLeftVerticalAxis) / 2 + 1;
 
-                map.tiles[startY * map.size.x + baseX - 2] = ID(WALL_CORNER_BOTTOM_LEFT);
-                map.tiles[startY * map.size.x + baseX - 1] = ID(WALL_BOTTOM);
-                map.tiles[startY * map.size.x + baseX]     = ID(WALL_BOTTOM);
-                map.tiles[startY * map.size.x + baseX + 1] = ID(WALL_CORNER_BOTTOM_RIGHT);
+                map.tiles[startY * map.size.x + baseX - 2] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
+                map.tiles[startY * map.size.x + baseX - 1] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
+                map.tiles[startY * map.size.x + baseX]     = TextureTag::WALL_CORNER_BOTTOM_LEFT;
+                map.tiles[startY * map.size.x + baseX + 1] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
                 for (u32 i = startY + 1; i < stopY; ++i)
                 {
-                    map.tiles[i * map.size.x + baseX - 2] = ID(WALL_LEFT);
-                    map.tiles[i * map.size.x + baseX - 1] = ID(FLOOR);
-                    map.tiles[i * map.size.x + baseX]     = ID(FLOOR);
-                    map.tiles[i * map.size.x + baseX + 1] = ID(WALL_RIGHT);
+                    map.tiles[i * map.size.x + baseX - 2] = TextureTag::WALL_LEFT;
+                    map.tiles[i * map.size.x + baseX - 1] = TextureTag::FLOOR_1;
+                    map.tiles[i * map.size.x + baseX]     = TextureTag::FLOOR_1;
+                    map.tiles[i * map.size.x + baseX + 1] = TextureTag::WALL_RIGHT;
                 }
-                map.tiles[stopY * map.size.x + baseX - 2] = ID(WALL_CORNER_TOP_LEFT);
-                map.tiles[stopY * map.size.x + baseX - 1] = ID(WALL_TOP);
-                map.tiles[stopY * map.size.x + baseX]     = ID(WALL_TOP);
-                map.tiles[stopY * map.size.x + baseX + 1] = ID(WALL_CORNER_TOP_RIGHT);
+                map.tiles[stopY * map.size.x + baseX - 2] = TextureTag::WALL_CORNER_TOP_LEFT;
+                map.tiles[stopY * map.size.x + baseX - 1] = TextureTag::WALL_TOP_MID;
+                map.tiles[stopY * map.size.x + baseX]     = TextureTag::WALL_TOP_MID;
+                map.tiles[stopY * map.size.x + baseX + 1] = TextureTag::WALL_CORNER_TOP_RIGHT;
 
                 // LEFT TUNNEL
                 u32 startX = prevRoomRight;
                 u32 stopX = (prevRoomRight + prevLeftVerticalAxis) / 2 - 1;
                 u32 baseY = prevYPos + prevHeight / 2;
                 // entrance - left room
-                map.tiles[(baseY - 2) * map.size.x + startX] = ID(WALL_CORNER_BOTTOM_RIGHT);
+                map.tiles[(baseY - 2) * map.size.x + startX] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
                 //map.walls[map.numberOfWalls++] = getLeftBottomCornerByTile({startX, baseY - 2});
-                map.tiles[(baseY - 1) * map.size.x + startX] = ID(FLOOR);
-                map.tiles[ baseY      * map.size.x + startX] = ID(FLOOR);
-                map.tiles[(baseY + 1) * map.size.x + startX] = ID(WALL_CORNER_TOP_RIGHT);
+                map.tiles[(baseY - 1) * map.size.x + startX] = TextureTag::FLOOR_1;
+                map.tiles[ baseY      * map.size.x + startX] = TextureTag::FLOOR_1;
+                map.tiles[(baseY + 1) * map.size.x + startX] = TextureTag::WALL_CORNER_TOP_RIGHT;
                 // left tunnel
                 for (u32 i = startX + 1; i < stopX; ++i)
                 {
-                    map.tiles[(baseY - 2) * map.size.x + i] = ID(WALL_BOTTOM);
-                    map.tiles[(baseY - 1) * map.size.x + i] = ID(FLOOR);
-                    map.tiles[ baseY      * map.size.x + i] = ID(FLOOR);
-                    map.tiles[(baseY + 1) * map.size.x + i] = ID(WALL_TOP);
+                    map.tiles[(baseY - 2) * map.size.x + i] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
+                    map.tiles[(baseY - 1) * map.size.x + i] = TextureTag::FLOOR_1;
+                    map.tiles[ baseY      * map.size.x + i] = TextureTag::FLOOR_1;
+                    map.tiles[(baseY + 1) * map.size.x + i] = TextureTag::WALL_TOP_MID;
                 }
                 // end of left tunnel
-                map.tiles[(baseY - 1) * map.size.x + stopX] = ID(FLOOR);
-                map.tiles[ baseY      * map.size.x + stopX] = ID(FLOOR);
+                map.tiles[(baseY - 1) * map.size.x + stopX] = TextureTag::FLOOR_1;
+                map.tiles[ baseY      * map.size.x + stopX] = TextureTag::FLOOR_1;
 
                 // RIGHT TUNNEL
                 baseY = yPos + height / 2;
                 startX = (prevRoomRight + prevLeftVerticalAxis) / 2 + 3;
                 stopX = prevLeftVerticalAxis;
                 // entrance - right room
-                map.tiles[(baseY - 2) * map.size.x + stopX] = ID(WALL_CORNER_BOTTOM_RIGHT);
-                map.tiles[(baseY - 1) * map.size.x + stopX] = ID(FLOOR);
-                map.tiles[ baseY      * map.size.x + stopX] = ID(FLOOR);
-                map.tiles[(baseY + 1) * map.size.x + stopX] = ID(WALL_CORNER_TOP_RIGHT);
+                map.tiles[(baseY - 2) * map.size.x + stopX] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
+                map.tiles[(baseY - 1) * map.size.x + stopX] = TextureTag::FLOOR_1;
+                map.tiles[ baseY      * map.size.x + stopX] = TextureTag::FLOOR_1;
+                map.tiles[(baseY + 1) * map.size.x + stopX] = TextureTag::WALL_CORNER_TOP_RIGHT;
                 // right tunnel
                 for (u32 i = startX; i < stopX; ++i)
                 {
-                    map.tiles[(baseY - 2) * map.size.x + i] = ID(WALL_BOTTOM);
-                    map.tiles[(baseY - 1) * map.size.x + i] = ID(FLOOR);
-                    map.tiles[ baseY      * map.size.x + i] = ID(FLOOR);
-                    map.tiles[(baseY + 1) * map.size.x + i] = ID(WALL_TOP);
+                    map.tiles[(baseY - 2) * map.size.x + i] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
+                    map.tiles[(baseY - 1) * map.size.x + i] = TextureTag::FLOOR_1;
+                    map.tiles[ baseY      * map.size.x + i] = TextureTag::FLOOR_1;
+                    map.tiles[(baseY + 1) * map.size.x + i] = TextureTag::WALL_TOP_MID;
                 }
                 // end of right tunnel
-                map.tiles[(baseY - 1) * map.size.x + startX - 1] = ID(FLOOR);
-                map.tiles[ baseY      * map.size.x + startX - 1] = ID(FLOOR);
+                map.tiles[(baseY - 1) * map.size.x + startX - 1] = TextureTag::FLOOR_1;
+                map.tiles[ baseY      * map.size.x + startX - 1] = TextureTag::FLOOR_1;
             }
             else
             {
@@ -1240,7 +1198,7 @@ class Game {
         {
             for (u32 j = 0; j < map.size.x; ++j)
             {
-                if (map.tiles[i * map.size.x + j] != ID(NONE))
+                if (map.tiles[i * map.size.x + j] != TextureTag::NONE)
                     ++map.tilesArrSize;
             }
         }
@@ -1252,7 +1210,7 @@ class Game {
         {
             for (u32 j = 0; j < map.size.x; ++j)
             {
-                if (map.tiles[i * map.size.x + j] != ID(NONE))
+                if (map.tiles[i * map.size.x + j] != TextureTag::NONE)
                     map.tilesArr[cnt++] = glm::uvec2{j,i};
             }
         }
@@ -1272,6 +1230,99 @@ class Game {
                                         1000.0f,
                                         text) &&
             actionState.menuInteract == KeyState::PRESS;
+    }
+
+    void linkAnimationByTag(AnimationTag tag)
+    {
+        TextureId* resultedArr = nullptr;
+        u32 frameCount = 0;
+        switch (tag)
+        {
+            case ELF_M_HIT:
+            {
+                CREATE_ANIMATION_ARRAY(ELF_M_HIT);
+            }
+
+            case ELF_M_IDLE:
+            {
+                CREATE_ANIMATION_ARRAY(ELF_M_IDLE);
+            }
+
+            case ELF_M_RUN:
+            {
+                CREATE_ANIMATION_ARRAY(ELF_M_RUN);
+            }
+
+            case ELF_F_HIT:
+            {
+                CREATE_ANIMATION_ARRAY(ELF_F_HIT);
+            }
+
+            case ELF_F_IDLE:
+                CREATE_ANIMATION_ARRAY(ELF_F_IDLE);
+
+            case ELF_F_RUN:
+            {
+                CREATE_ANIMATION_ARRAY(ELF_F_RUN);
+            }
+
+            case BIG_DEMON_IDLE:
+            {
+                CREATE_ANIMATION_ARRAY(BIG_DEMON_IDLE);
+            }
+
+            case BIG_DEMON_RUN:
+            {
+                CREATE_ANIMATION_ARRAY(BIG_DEMON_RUN);
+            }
+
+            case BIG_ZOMBIE_IDLE:
+            {
+                CREATE_ANIMATION_ARRAY(BIG_ZOMBIE_IDLE);
+            }
+
+            case BIG_ZOMBIE_RUN:
+            {
+                CREATE_ANIMATION_ARRAY(BIG_ZOMBIE_RUN);
+            }
+
+            case CHEST_EMPTY_OPEN:
+            {
+                CREATE_ANIMATION_ARRAY(CHEST_EMPTY_OPEN);
+            }
+
+            case CHEST_FULL_OPEN:
+            {
+                CREATE_ANIMATION_ARRAY(CHEST_FULL_OPEN);
+            }
+
+            case CHEST_MIMIC_OPEN:
+            {
+                CREATE_ANIMATION_ARRAY(CHEST_MIMIC_OPEN);
+            }
+
+            case SWORD:
+            {
+                CREATE_ANIMATION_ARRAY(SWORD);
+            }
+
+            case SHIELD:
+            {
+                CREATE_ANIMATION_ARRAY(SHIELD);
+            }
+
+            case KNIFE:
+            {
+                CREATE_ANIMATION_ARRAY(KNIFE);
+            }
+
+            case FORK:
+            {
+                CREATE_ANIMATION_ARRAY(FORK);
+            }
+        }
+
+        ENGINE.createAnimation(tag, resultedArr, frameCount, ANIMATION_SPEED);
     }
 };
 
