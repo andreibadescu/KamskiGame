@@ -20,11 +20,27 @@ class Game {
         u32 numberOfWalls;
         glm::vec2 quadSize;
         u32 tilesArrSize;
+        struct Room
+        {
+            glm::vec2 center;
+            glm::vec2 size;
+            glm::vec2 entranceLeftBottom;
+            glm::vec2 entranceLeftTop;
+            glm::vec2 entranceRightBottom;
+            glm::vec2 entranceRightTop;
+        } rooms[100];
+        u32 roomCount;
     };
-
+    
+    enum CombatPhase
+    {
+        COMBAT_PHASE_OFF,
+        COMBAT_PHASE_ON
+    };
+    
     // MEMORY THAT SHOULDN'T BE CHANGED
     TextureId textureIdsByTag[(u32)TextureTag::COUNT];
-
+    
     // MEMORY THAT YOU CAN RESET
     union {
         struct {
@@ -39,7 +55,8 @@ class Game {
             ItemSet itemSet;
             glm::vec2 buttonSize;
             f64 playerAttackTimer;
-
+            CombatPhase combatPhase;
+            
             struct
             {
                 KeyState startGame;
@@ -54,23 +71,103 @@ class Game {
                 KeyState pauseGame;
                 KeyState menuInteract;
             } actionState;
-
+            
             glm::vec2 cursorPosition;
             Map map;
         };
         char disposableMemory[];
     };
-
+    
     Game() = delete;
-
+    
     void gameInit();
-
+    
     void gameInput();
-
+    
     void gameUpdate();
-
+    
     void gameRender();
-
+    
+    void drawEntrance()
+    {
+        for(u32 i = 0; i < map.roomCount; i++)
+        {
+            glm::vec2 entrance = map.rooms[i].entranceLeftTop;
+            ENGINE.drawColoredQuad(entrance, map.quadSize, glm::vec4(1.0f,1.0f,1.0f,1.0f), 0);
+            entrance = map.rooms[i].entranceLeftBottom;
+            ENGINE.drawColoredQuad(entrance, map.quadSize, glm::vec4(1.0f,1.0f,1.0f,1.0f), 0);
+            entrance = map.rooms[i].entranceRightTop;
+            ENGINE.drawColoredQuad(entrance, map.quadSize, glm::vec4(1.0f,1.0f,1.0f,1.0f), 0);
+            entrance = map.rooms[i].entranceRightBottom;
+            ENGINE.drawColoredQuad(entrance, map.quadSize, glm::vec4(1.0f,1.0f,1.0f,1.0f), 0);
+        }
+    }
+    
+    void enterRoom(u32 roomIndex)
+    {
+        assert(roomIndex < map.roomCount);
+        Map::Room& room = map.rooms[roomIndex];
+        
+        glm::vec2 roomSize = room.size;
+        addEntity(glm::vec2(room.center + roomSize / 4.0f),
+                  BIG_ZOMBIE,
+                  BIG_ZOMBIE_IDLE);
+        
+        roomSize = {-room.size.x, room.size.y}; 
+        
+        addEntity(glm::vec2(room.center + roomSize / 4.0f),
+                  BIG_ZOMBIE,
+                  BIG_ZOMBIE_IDLE);
+        
+        roomSize = {-room.size.x, -room.size.y}; 
+        
+        addEntity(glm::vec2(room.center + roomSize / 4.0f),
+                  BIG_ZOMBIE,
+                  BIG_ZOMBIE_IDLE);
+        
+        roomSize = {room.size.x, -room.size.y}; 
+        
+        addEntity(glm::vec2(room.center + roomSize / 4.0f),
+                  BIG_ZOMBIE,
+                  BIG_ZOMBIE_IDLE);
+        combatPhase = COMBAT_PHASE_ON;
+    }
+    
+    void handleCombatPhases()
+    {
+        if(combatPhase == COMBAT_PHASE_ON)
+        {
+            ComponentVector<EnemyComponent>& enemies = entityRegistry.getComponentVector<EnemyComponent>();
+            if(enemies.size() == 0)
+            {
+                //ENDS COMBAT
+                // opens doors and drops item
+                combatPhase = COMBAT_PHASE_OFF;
+            }
+        } else
+        {
+            
+            TransformComponent& tr = entityRegistry.getComponent<TransformComponent>(playerEId);
+            ColliderComponent& col = entityRegistry.getComponent<ColliderComponent>(playerEId);
+            
+            for(u32 i = 0; i < map.roomCount; i++)
+            {
+                if(isCollision(tr.position, map.rooms[i].entranceLeftBottom,
+                               col.hitBox, map.quadSize))
+                {
+                    enterRoom(i);
+                    return;
+                }
+                if(isCollision(tr.position, map.rooms[i].entranceLeftTop,
+                               col.hitBox, map.quadSize))
+                {
+                    enterRoom(i);
+                    return;
+                }
+            }
+        }
+    }
+    
     bool isCollision(glm::vec2 posA, glm::vec2 posB,
                      glm::vec2 sizeA, glm::vec2 sizeB)
     {
@@ -402,10 +499,11 @@ class Game {
         }
 
         playerTransform.position = resolveBasePositionCollision(playerTransform.position - v.vel * (f32)deltaTime, playerTransform.position, ENTITY_TYPE_PLAYER);
+        
         f32 len = glm::length(cursorPosition);
         len = fmax(len, 50);
         glm::vec2 offset = glm::normalize(cursorPosition) * len;
-
+        
         camera.x = playerTransform.position.x + offset.x / 20.0f;
         camera.y = playerTransform.position.y + offset.y / 20.0f;
     }
@@ -1035,6 +1133,7 @@ class Game {
             ENGINE.addLightBlocker(center, size);
             // ENGINE.drawTexturedQuad(center, size, ID(DEBUG_OVERLAY), 0);
         }
+        
     }
 
     glm::vec2 getQuadSize() const
@@ -1077,8 +1176,8 @@ class Game {
 
         u32 leftVerticalAxis = 1;
         u32 rightVerticalAxis = map.size.x - 1;
-
-        for (u32 prevYPos = map.size.y / 2 - ROOM_AVERAGE.y, prevWidth, prevHeight, prevLeftVerticalAxis, roomRight, rooms = 0; ; ++rooms)
+        map.roomCount = 0;
+        for (u32 prevYPos = map.size.y / 2 - ROOM_AVERAGE.y, prevWidth, prevHeight, prevLeftVerticalAxis, roomRight; ; ++map.roomCount)
         {
             u32 height = (u32)ENGINE.randomRangeU64(seed, ROOM.MIN.y, ROOM.MAX.y) & (~1u);
             u32 width = (u32)ENGINE.randomRangeU64(seed, ROOM.MIN.x, ROOM.MAX.x) & (~1u);
@@ -1092,7 +1191,7 @@ class Game {
                 // };
                 break;
             }
-
+            
             const u32 yPos = (u32)ENGINE.randomRangeU64(seed, std::max(0, (i32)prevYPos - (i32)ROOM.MIN.y), std::min(map.size.y - height, prevYPos + ROOM.MIN.y));
             for (u32 i = 1; i + 1 < height; ++i)
             {
@@ -1101,32 +1200,17 @@ class Game {
                     map.tiles[leftVerticalAxis + (yPos + i) * map.size.x + j] = TextureTag::FLOOR_1;
                 }
             }
-
+            glm::uvec2 tileLeftBottom{ leftVerticalAxis + 1, yPos + 1 };
+            glm::uvec2 tileRightTop{ leftVerticalAxis + width, yPos + height };
+            glm::vec2 cornerLeftBottom = getLeftBottomCornerByTile(tileLeftBottom);
+            glm::vec2 cornerRightTop = getLeftBottomCornerByTile(tileRightTop);
+            map.rooms[map.roomCount].center = (cornerLeftBottom + cornerRightTop) / 2.0f;
+            map.rooms[map.roomCount].size = cornerRightTop - cornerLeftBottom;
             // WALLS
             map.tiles[leftVerticalAxis + yPos * map.size.x] =  TextureTag::WALL_CORNER_BOTTOM_LEFT;
             map.tiles[leftVerticalAxis + yPos * map.size.x + width - 1] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
             map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x] = TextureTag::WALL_CORNER_TOP_LEFT;
             map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x + width - 1] = TextureTag::WALL_CORNER_TOP_RIGHT;
-
-            // // bottom
-            // map.walls[map.numberOfWalls++] = {
-            //     getLeftBottomCornerByTile({leftVerticalAxis, yPos}),
-            //     getLeftBottomCornerByTile({leftVerticalAxis + width, yPos + 1})
-            // };
-            // // top
-            // map.walls[map.numberOfWalls++] = {
-            //     getLeftBottomCornerByTile({leftVerticalAxis, yPos + height - 1}),
-            //     getLeftBottomCornerByTile({leftVerticalAxis + width, yPos + height})
-            // };
-
-            // if (rooms == 0)
-            // {
-            //     // left
-            //     map.walls[map.numberOfWalls++] = {
-            //         getLeftBottomCornerByTile({leftVerticalAxis, yPos}),
-            //         getLeftBottomCornerByTile({leftVerticalAxis + 1, yPos + height})
-            //     };
-            // }
 
 
             for (u32 i = 1; i + 1 < height; ++i)
@@ -1149,40 +1233,13 @@ class Game {
             //         getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 2, yPos + 2}),
             //         ENEMIES_STATS[ZOMBIE].tag));
             // logDebug("");
-            if (rooms != 0)
-            {
-                addEntity(
-                        baseToSpritePosition(
-                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 3, yPos + 3}),
-                                            BIG_ZOMBIE),
-                        BIG_ZOMBIE,
-                        BIG_ZOMBIE_IDLE);
-                addEntity(
-                        baseToSpritePosition(
-                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + width - 4, yPos + 3}),
-                                            BIG_ZOMBIE),
-                        BIG_ZOMBIE,
-                        BIG_ZOMBIE_IDLE);
-                addEntity(
-                        baseToSpritePosition(
-                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 3, yPos + height - 4}),
-                                            BIG_ZOMBIE),
-                        BIG_ZOMBIE,
-                        BIG_ZOMBIE_IDLE);
-                addEntity(
-                        baseToSpritePosition(
-                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + width - 4, yPos + height - 4}),
-                                            BIG_ZOMBIE),
-                        BIG_ZOMBIE,
-                        BIG_ZOMBIE_IDLE);
-            }
 
             const u32 prevRoomRight = roomRight;
             roomRight = leftVerticalAxis + width - 1;
             prevLeftVerticalAxis = leftVerticalAxis;
             leftVerticalAxis += width + (u32)ENGINE.randomRangeU64(seed, ROOM.MIN.x / 2, std::max(ROOM.MIN.x, ROOM.MAX.x / 2)) & (~1u);
 
-            if (rooms != 0)
+            if (map.roomCount != 0)
             {
                 // MIDDLE TUNNEL
                 u32 startY = prevYPos + prevHeight / 2;
@@ -1216,6 +1273,13 @@ class Game {
                 u32 stopX = (prevRoomRight + prevLeftVerticalAxis) / 2 - 1;
                 u32 baseY = prevYPos + prevHeight / 2;
                 // entrance - left room
+                glm::uvec2 tileLeftBottomEntrance{baseY - 1, startX };
+                glm::uvec2 tileLeftTopEntrance{ baseY + 1, startX + 1 };
+                // left end of tunnel, right entrance of previous room
+                logDebug("%u", map.roomCount - 1);
+                map.rooms[map.roomCount - 1].entranceRightBottom = getCenterPositionByTile({tileLeftBottomEntrance.y, tileLeftBottomEntrance.x});
+                map.rooms[map.roomCount - 1].entranceRightTop = getCenterPositionByTile({tileLeftTopEntrance.y - 1, tileLeftTopEntrance.x - 1});
+                
                 map.tiles[(baseY - 2) * map.size.x + startX] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
                 //map.walls[map.numberOfWalls++] = getLeftBottomCornerByTile({startX, baseY - 2});
                 map.tiles[(baseY - 1) * map.size.x + startX] = TextureTag::FLOOR_1;
@@ -1238,6 +1302,12 @@ class Game {
                 startX = (prevRoomRight + prevLeftVerticalAxis) / 2 + 3;
                 stopX = prevLeftVerticalAxis;
                 // entrance - right room
+                glm::uvec2 tileRightBottomEntrance{baseY - 1, stopX };
+                glm::uvec2 tileRightTopEntrance{ baseY + 1, stopX + 1 };
+                // right end of tunnel, left entrance of current room
+                map.rooms[map.roomCount].entranceLeftBottom = getCenterPositionByTile({tileRightBottomEntrance.y, tileRightBottomEntrance.x});
+                map.rooms[map.roomCount].entranceLeftTop = getCenterPositionByTile({tileRightTopEntrance.y - 1, tileRightTopEntrance.x - 1});
+
                 map.tiles[(baseY - 2) * map.size.x + stopX] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
                 map.tiles[(baseY - 1) * map.size.x + stopX] = TextureTag::FLOOR_1;
                 map.tiles[ baseY      * map.size.x + stopX] = TextureTag::FLOOR_1;
