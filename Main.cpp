@@ -113,13 +113,14 @@ void Game::gameUpdate()
 
         ENGINE.simulateParticles(deltaTime);
 
+        itemPickupSystem();
         velocitySystem();
-        updatePlayer();
         updateEnemies();
-        moveProjectiles();
         updateFollowers();
         updateHealthBars();
-        itemPickupSystem();
+        moveProjectiles();
+        updatePlayer();
+        entityRegistry.removeMarkedEntities();
         break;
 
     [[unlikely]]
@@ -144,15 +145,15 @@ void Game::gameUpdate()
 void Game::gameRender()
 {
     ENGINE.beginBatch(camera);
-    switch (gameState) {
-        case GAME_RUNNING:
-        case GAME_LOST:
-        case GAME_PAUSED:
+    switch (gameState)
+    {
+    case GAME_PAUSED:
+        renderItems();
+    case GAME_RUNNING:
+    case GAME_LOST:
         renderMap();
         renderSprites();
         ENGINE.drawParticles();
-        if (gameState == GAME_PAUSED)
-            renderItems();
         break;
     }
     renderCursor();

@@ -29,7 +29,8 @@ inline constexpr f32 ENEMY_DETECTION_RADIUS = 150.0f;
 inline constexpr f32 QUAD_SIZE = 16.0f;
 inline constexpr f32 HEALTH_BAR_HEIGHT = 2.0f;
 inline constexpr f32 HEALTH_BAR_HEIGHT_OFFSET = 5.0f;
-inline constexpr f32 ANIMATION_SPEED = 1.0f;
+inline constexpr f32 ANIMATIONS_MULTIPLIER = 1.0f;
+inline constexpr f32 ENTITIES_SIZE_MULTIPLIER = 1.0f;
 //TODO: create a math library
 inline constexpr f32 PI = 3.14159265f;
 
@@ -165,6 +166,9 @@ enum class TextureTag: u32
     BIG_DEMON_RUN_FINAL = BIG_DEMON_RUN_3,
 
     // BIG ZOMBIE
+    BIG_ZOMBIE_HIT_0,
+    BIG_ZOMBIE_HIT_FINAL = BIG_ZOMBIE_HIT_0,
+
     BIG_ZOMBIE_IDLE_0,
     BIG_ZOMBIE_IDLE_1,
     BIG_ZOMBIE_IDLE_2,
@@ -219,6 +223,7 @@ enum AnimationTag: u32
     BIG_DEMON_RUN,
     BIG_ZOMBIE_IDLE,
     BIG_ZOMBIE_RUN,
+    BIG_ZOMBIE_HIT,
     CHEST_EMPTY_OPEN,
     CHEST_FULL_OPEN,
     CHEST_MIMIC_OPEN,
@@ -290,32 +295,68 @@ struct ItemSet
 };
 /* STRUCTS END */
 
-constexpr EntityStats ENTITIES_STATS[] = {
+inline constexpr EntityStats ENTITIES_STATS[]{
     [ELF_M]      = {DEFAULT_PLAYER_SPEED, 200.0f, 50.0f},
     [ELF_F]      = {DEFAULT_PLAYER_SPEED, 200.0f, 50.0f},
     [BIG_DEMON]  = {DEFAULT_ENEMY_SPEED, 200.0f, 25.0f},
     [BIG_ZOMBIE] = {DEFAULT_ENEMY_SPEED, 200.0f, 25.0f}
 };
 
-constexpr glm::vec2 HIT_BOXES[] = {
-    [ELF_M]      = {15.0f, 21.0f},
-    [BIG_DEMON]  = {24.0f, 31.0f},
-    [BIG_ZOMBIE] = {24.0f, 31.0f}
+inline constexpr glm::vec2 HIT_BOXES[]{
+    [ELF_M]      = {12.0f, 19.0f},
+    [ELF_F]      = {13.0f, 16.0f},
+    [BIG_DEMON]  = {18.0f, 28.0f},
+    [BIG_ZOMBIE] = {18.0f, 26.0f}
 };
 
-constexpr glm::vec2 HIT_BOXES_WEAPONS[] = {
+inline constexpr glm::vec2 HIT_BOXES_WEAPONS[]{
     [WEAPON_FORK] = {15.0f, 21.0f}
 };
 
-constexpr glm::vec2 TEXTURE_SIZES[] = {
-    [ELF_M]      = {18.0f, 27.0f},
+inline constexpr glm::vec2 TEXTURE_SIZES[]{
+    [ELF_M]      = {16.0f, 28.0f},
     [ELF_F]      = {15.0f, 18.0f},
     [BIG_DEMON]  = {10.0f, 10.0f},
-    [BIG_ZOMBIE] = {12.0f, 26.0f}
+    [BIG_ZOMBIE] = {32.0f, 34.0f}
 };
 
-constexpr glm::vec2 TEXTURE_SIZES_WEAPONS[] = {
+inline constexpr glm::vec2 TEXTURE_SIZES_WEAPONS[]{
     [WEAPON_FORK] = {12.0f, 26.0f}
+};
+
+inline constexpr f32 ANIMATION_DURATION[] = {
+    [ELF_M_HIT]        = 0.2f,
+    [ELF_M_IDLE]       = 0.8f,
+    [ELF_M_RUN]        = 0.4f,
+    [ELF_F_HIT]        = 0.3f,
+    [ELF_F_IDLE]       = 0.5f,
+    [ELF_F_RUN]        = 0.4f,
+    [BIG_DEMON_IDLE]   = 0.4f,
+    [BIG_DEMON_RUN]    = 0.4f,
+    [BIG_ZOMBIE_IDLE]  = 0.4f,
+    [BIG_ZOMBIE_RUN]   = 0.4f,
+    [BIG_ZOMBIE_HIT]   = 0.3f,
+    [CHEST_EMPTY_OPEN] = 0.5f,
+    [CHEST_FULL_OPEN]  = 0.5f,
+    [CHEST_MIMIC_OPEN] = 0.5f
+};
+
+// DO NOT SET THE COOLDOWN LONGER THAN THE DURATION OF ANIMATION
+inline constexpr f32 ANIMATION_COOLDOWN[] = {
+    [ELF_M_HIT]        = 0.2f,
+    [ELF_M_IDLE]       = 0.0f,
+    [ELF_M_RUN]        = 0.0f,
+    [ELF_F_HIT]        = 0.0f,
+    [ELF_F_IDLE]       = 0.0f,
+    [ELF_F_RUN]        = 0.0f,
+    [BIG_DEMON_IDLE]   = 0.0f,
+    [BIG_DEMON_RUN]    = 0.0f,
+    [BIG_ZOMBIE_IDLE]  = 0.0f,
+    [BIG_ZOMBIE_RUN]   = 0.0f,
+    [BIG_ZOMBIE_HIT]   = 0.3f,
+    [CHEST_EMPTY_OPEN] = 0.0f,
+    [CHEST_FULL_OPEN]  = 0.0f,
+    [CHEST_MIMIC_OPEN] = 0.0f
 };
 
 enum States {
@@ -335,17 +376,12 @@ enum States {
 
 // always use this macro inside a {}
 #define CREATE_ANIMATION_ARRAY(ANIMATION)\
-    static bool notInitialized = true;\
-    if (notInitialized)\
-    {\
-        static TextureId arr[ANIMATION_COUNT(ANIMATION)];\
-        for (u32 i = 0; i < ANIMATION_COUNT(ANIMATION); ++i) {\
-            arr[i] = getTextureIdByTag(TAG(ANIMATION##_0) + i);\
-        }\
-        notInitialized = false;\
-        frameCount = ANIMATION_COUNT(ANIMATION);\
-        resultedArr = arr;\
+    static TextureId arr[ANIMATION_COUNT(ANIMATION)];\
+    for (u32 i = 0; i < ANIMATION_COUNT(ANIMATION); ++i) {\
+        arr[i] = getTextureIdByTag(TAG(ANIMATION##_0) + i);\
     }\
+    frameCount = ANIMATION_COUNT(ANIMATION);\
+    resultedArr = arr;\
     break
 
 /* TEXTURES */
@@ -475,6 +511,8 @@ inline const char* TEXTURE_PATHS[] = {
 #undef BIG_DEMON_ASSET
 
 #define BIG_ZOMBIE_ASSET(filename) MOB_ASSET("big_zombie/"filename)
+    [TAG(BIG_ZOMBIE_HIT_0)]              = BIG_ZOMBIE_ASSET("hit/big_zombie_hit_anim_f0.png"),
+
     [TAG(BIG_ZOMBIE_IDLE_0)]             = BIG_ZOMBIE_ASSET("idle/big_zombie_idle_anim_f0.png"),
     [TAG(BIG_ZOMBIE_IDLE_1)]             = BIG_ZOMBIE_ASSET("idle/big_zombie_idle_anim_f1.png"),
     [TAG(BIG_ZOMBIE_IDLE_2)]             = BIG_ZOMBIE_ASSET("idle/big_zombie_idle_anim_f2.png"),
