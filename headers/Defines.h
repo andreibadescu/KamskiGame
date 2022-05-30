@@ -25,7 +25,7 @@ inline constexpr f32 DEFAULT_CAMERA_ZOOM = 7.0f;
 #endif
 inline constexpr f32 DEFAULT_PLAYER_SPEED = 75.0f;
 inline constexpr f32 DEFAULT_ENEMY_SPEED = 40.0f;
-inline constexpr f32 ENEMY_DETECTION_RADIUS = 150.0f;
+inline constexpr f32 ENEMY_DETECTION_RADIUS = 180.0f;
 inline constexpr f32 QUAD_SIZE = 16.0f;
 inline constexpr f32 HEALTH_BAR_HEIGHT = 2.0f;
 inline constexpr f32 HEALTH_BAR_HEIGHT_OFFSET = 5.0f;
@@ -435,40 +435,40 @@ inline const char* TEXTURE_PATHS[] = {
     [TAG(WALL_BANNER_RED)]               = WALL_ASSET("wall_banner_red.png"),
     [TAG(WALL_BANNER_YELLOW)]            = WALL_ASSET("wall_banner_yellow.png"),
 
-    [TAG(WALL_COLUMN_MID)]               = WALL_ASSET("wall_column_mid.png"),
-    [TAG(WALL_COLUMN_TOP)]               = WALL_ASSET("wall_column_top.png"),
-    [TAG(WALL_COLUMN_BASE)]              = WALL_ASSET("wall_column_base.png"),
+    [TAG(WALL_COLUMN_MID)]               = WALL_ASSET("column/wall_column_mid.png"),
+    [TAG(WALL_COLUMN_TOP)]               = WALL_ASSET("column/wall_column_top.png"),
+    [TAG(WALL_COLUMN_BASE)]              = WALL_ASSET("column/wall_column_base.png"),
 
     [TAG(WALL_LEFT)]                     = WALL_ASSET("wall_left.png"),
     [TAG(WALL_MID)]                      = WALL_ASSET("wall_mid.png"),
     [TAG(WALL_RIGHT)]                    = WALL_ASSET("wall_right.png"),
 
-    [TAG(WALL_TOP_LEFT)]                 = WALL_ASSET("wall_top_left.png"),
-    [TAG(WALL_TOP_MID)]                  = WALL_ASSET("wall_top_mid.png"),
-    [TAG(WALL_TOP_RIGHT)]                = WALL_ASSET("wall_top_right.png"),
+    [TAG(WALL_TOP_LEFT)]                 = WALL_ASSET("top/wall_top_left.png"),
+    [TAG(WALL_TOP_MID)]                  = WALL_ASSET("top/wall_top_mid.png"),
+    [TAG(WALL_TOP_RIGHT)]                = WALL_ASSET("top/wall_top_right.png"),
 
-    [TAG(WALL_SIDE_FRONT_LEFT)]          = WALL_ASSET("wall_side_front_left.png"),
-    [TAG(WALL_SIDE_FRONT_RIGHT)]         = WALL_ASSET("wall_side_front_right.png"),
-    [TAG(WALL_SIDE_MID_LEFT)]            = WALL_ASSET("wall_side_mid_left.png"),
-    [TAG(WALL_SIDE_MID_RIGHT)]           = WALL_ASSET("wall_side_mid_right.png"),
-    [TAG(WALL_SIDE_TOP_LEFT)]            = WALL_ASSET("wall_side_top_left.png"),
-    [TAG(WALL_SIDE_TOP_RIGHT)]           = WALL_ASSET("wall_side_top_right.png"),
+    [TAG(WALL_SIDE_FRONT_LEFT)]          = WALL_ASSET("side/wall_side_front_left.png"),
+    [TAG(WALL_SIDE_FRONT_RIGHT)]         = WALL_ASSET("side/wall_side_front_right.png"),
+    [TAG(WALL_SIDE_MID_LEFT)]            = WALL_ASSET("side/wall_side_mid_left.png"),
+    [TAG(WALL_SIDE_MID_RIGHT)]           = WALL_ASSET("side/wall_side_mid_right.png"),
+    [TAG(WALL_SIDE_TOP_LEFT)]            = WALL_ASSET("side/wall_side_top_left.png"),
+    [TAG(WALL_SIDE_TOP_RIGHT)]           = WALL_ASSET("side/wall_side_top_right.png"),
 
-    [TAG(WALL_CORNER_BOTTOM_LEFT)]       = WALL_ASSET("wall_corner_bottom_left.png"),
-    [TAG(WALL_CORNER_BOTTOM_RIGHT)]      = WALL_ASSET("wall_corner_bottom_right.png"),
-    [TAG(WALL_CORNER_FRONT_LEFT)]        = WALL_ASSET("wall_corner_front_left.png"),
-    [TAG(WALL_CORNER_FRONT_RIGHT)]       = WALL_ASSET("wall_corner_front_right.png"),
-    [TAG(WALL_CORNER_LEFT)]              = WALL_ASSET("wall_corner_left.png"),
-    [TAG(WALL_CORNER_RIGHT)]             = WALL_ASSET("wall_corner_right.png"),
-    [TAG(WALL_CORNER_TOP_LEFT)]          = WALL_ASSET("wall_corner_top_left.png"),
-    [TAG(WALL_CORNER_TOP_RIGHT)]         = WALL_ASSET("wall_corner_top_right.png"),
+    [TAG(WALL_CORNER_BOTTOM_LEFT)]       = WALL_ASSET("corner/wall_corner_bottom_left.png"),
+    [TAG(WALL_CORNER_BOTTOM_RIGHT)]      = WALL_ASSET("corner/wall_corner_bottom_right.png"),
+    [TAG(WALL_CORNER_FRONT_LEFT)]        = WALL_ASSET("corner/wall_corner_front_left.png"),
+    [TAG(WALL_CORNER_FRONT_RIGHT)]       = WALL_ASSET("corner/wall_corner_front_right.png"),
+    [TAG(WALL_CORNER_LEFT)]              = WALL_ASSET("corner/wall_corner_left.png"),
+    [TAG(WALL_CORNER_RIGHT)]             = WALL_ASSET("corner/wall_corner_right.png"),
+    [TAG(WALL_CORNER_TOP_LEFT)]          = WALL_ASSET("corner/wall_corner_top_left.png"),
+    [TAG(WALL_CORNER_TOP_RIGHT)]         = WALL_ASSET("corner/wall_corner_top_right.png"),
 
-    [TAG(WALL_INNER_CORNER_L_TOP_LEFT)]  = WALL_ASSET("wall_inner_corner_l_top_left.png"),
-    [TAG(WALL_INNER_CORNER_L_TOP_RIGHT)] = WALL_ASSET("wall_inner_corner_l_top_right.png"),
-    [TAG(WALL_INNER_CORNER_MID_LEFT)]    = WALL_ASSET("wall_inner_corner_mid_left.png"),
-    [TAG(WALL_INNER_CORNER_MID_RIGHT)]   = WALL_ASSET("wall_inner_corner_mid_right.png"),
-    [TAG(WALL_INNER_CORNER_T_TOP_LEFT)]  = WALL_ASSET("wall_inner_corner_t_top_left.png"),
-    [TAG(WALL_INNER_CORNER_T_TOP_RIGHT)] = WALL_ASSET("wall_inner_corner_t_top_right.png"),
+    [TAG(WALL_INNER_CORNER_L_TOP_LEFT)]  = WALL_ASSET("inner_corner/wall_inner_corner_l_top_left.png"),
+    [TAG(WALL_INNER_CORNER_L_TOP_RIGHT)] = WALL_ASSET("inner_corner/wall_inner_corner_l_top_right.png"),
+    [TAG(WALL_INNER_CORNER_MID_LEFT)]    = WALL_ASSET("inner_corner/wall_inner_corner_mid_left.png"),
+    [TAG(WALL_INNER_CORNER_MID_RIGHT)]   = WALL_ASSET("inner_corner/wall_inner_corner_mid_right.png"),
+    [TAG(WALL_INNER_CORNER_T_TOP_LEFT)]  = WALL_ASSET("inner_corner/wall_inner_corner_t_top_left.png"),
+    [TAG(WALL_INNER_CORNER_T_TOP_RIGHT)] = WALL_ASSET("inner_corner/wall_inner_corner_t_top_right.png"),
 
 #define ELF_M_ASSET(filename) MOB_ASSET("elf_m/"filename)
     [TAG(ELF_M_HIT_0)]                   = ELF_M_ASSET("hit/elf_m_hit_anim_f0.png"),
