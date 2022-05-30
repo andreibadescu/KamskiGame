@@ -28,7 +28,7 @@ class Game {
     // MEMORY THAT YOU CAN RESET
     union {
         struct {
-            f32 deltaTime;
+            f64 deltaTime;
             Entity playerEId;
             EntityRegistry<ComponentList<KAMSKI_COMPONENTS>> entityRegistry;
             glm::vec3 camera;
@@ -38,7 +38,7 @@ class Game {
             States gameState;
             ItemSet itemSet;
             glm::vec2 buttonSize;
-            f32 playerAttackTimer;
+            f64 playerAttackTimer;
 
             struct
             {
@@ -123,7 +123,6 @@ class Game {
             TransformComponent& toFollowTransform = transforms.getComponent(follower.toFollowId);
             followerTransform.position = toFollowTransform.position + follower.followOffset;
         }
-        entityRegistry.removeMarkedEntities();
     }
 
     void updateHealthBars()
@@ -133,7 +132,11 @@ class Game {
             HealthBarComponent& healthBar = entityRegistry.getComponent<HealthBarComponent>(healthBarId);
             TransformComponent& healthBarComponent = entityRegistry.getComponent<TransformComponent>(healthBarId);
             FollowComponent& follower = entityRegistry.getComponent<FollowComponent>(healthBarId);
-
+            if (!entityRegistry.hasComponent<EntityComponent>(follower.toFollowId))
+            {
+                entityRegistry.markEntityForDeletion(healthBarId);
+                continue;
+            }
             f32 healthPoints = entityRegistry.getComponent<EntityComponent>(follower.toFollowId).healthPoints;
             healthBarComponent.size.x = healthBar.maxSize * healthPoints / healthBar.maxHealth;
         }
@@ -300,7 +303,6 @@ class Game {
                 entityRegistry.markEntityForDeletion(eId);
             }
         }
-        entityRegistry.removeMarkedEntities();
     }
 
     void addPlayer(glm::vec2 position, EntityType playerType, AnimationTag animationTag)
@@ -348,6 +350,20 @@ class Game {
         entityRegistry.addComponent<ColliderComponent>(itemEId, glm::vec2{25.0f, 25.0f});
     }
 
+    bool isAnimationLocked(const SpriteComponent& sprite)
+    {
+        return ENGINE.getGameTime() < sprite.endTime;
+    }
+
+    void setAnimation(SpriteComponent& sprite, AnimationTag tag)
+    {
+        if (sprite.animation == tag || isAnimationLocked(sprite))
+            return;
+        sprite.animation = tag;
+        sprite.startTime = ENGINE.getGameTime();
+        sprite.endTime = sprite.startTime + ANIMATION_COOLDOWN[tag];
+    }
+
     void updatePlayerPosition()
     {
         if (actionState.zoomIn == KeyState::HOLD)
@@ -375,14 +391,23 @@ class Game {
         VelocityComponent& v = entityRegistry.getComponent<VelocityComponent>(playerEId);
         v.targetVel = direction * playerEntity.movementSpeed;
 
-        playerTransform.position = resolveBasePositionCollision(playerTransform.position - v.vel * deltaTime, playerTransform.position, ENTITY_TYPE_PLAYER);
+        SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
+        if (v.targetVel.x != 0.0f || v.targetVel.y != 0.0f)
+        {
+            setAnimation(playerSprite, ELF_M_RUN);
+        }
+        else
+        {
+            setAnimation(playerSprite, ELF_M_IDLE);
+        }
+
+        playerTransform.position = resolveBasePositionCollision(playerTransform.position - v.vel * (f32)deltaTime, playerTransform.position, ENTITY_TYPE_PLAYER);
         f32 len = glm::length(cursorPosition);
         len = fmax(len, 50);
         glm::vec2 offset = glm::normalize(cursorPosition) * len;
 
         camera.x = playerTransform.position.x + offset.x / 20.0f;
         camera.y = playerTransform.position.y + offset.y / 20.0f;
-
     }
 
     void renderCursor()
@@ -428,7 +453,7 @@ class Game {
 
     void updatePlayerAttack()
     {
-        if (playerAttackTimer > 0.0f)
+        if (playerAttackTimer > 0.0)
         {
             playerAttackTimer -= deltaTime;
             return;
@@ -437,9 +462,11 @@ class Game {
         {
             return;
         }
-//        if (hasWeapon(WEAPON_FORK))
+        SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
+        setAnimation(playerSprite, ELF_M_HIT);
+        // if (hasWeapon(WEAPON_FORK))
         {
-            playerAttackTimer = 0.4f - (0.3f * (f32)hasUtility(UTILITY_POTION));
+            playerAttackTimer = 0.4 - 0.3 * (f64)hasUtility(UTILITY_POTION);
             // cursorPosition is not affected by the camera position in calculations.
             //To convert cursorPosition to actual world Position you have to add the camera position to it
             EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
@@ -466,20 +493,21 @@ class Game {
         updatePlayerPosition();
         updatePlayerAttack();
         updatePlayerHealth();
+        const SpriteComponent& player = entityRegistry.getComponent<SpriteComponent>(playerEId);
     }
 
     /* Custom collision */
     void updateEnemies()
     {
-        f32 time = ENGINE.getGameTime();
+        f64 time = ENGINE.getGameTime();
         for (EnemyComponent& enemy : entityRegistry.iterateComponents<EnemyComponent>())
         {
-            if (enemy.phase == EnemyComponent::WALK && time - enemy.startTime > 5.0f)
+            if (enemy.phase == EnemyComponent::WALK && time - enemy.startTime >= 5.0)
             {
                 enemy.phase = EnemyComponent::SHOOT;
                 enemy.startTime = time;
             }
-            else if (enemy.phase == EnemyComponent::WAIT && time - enemy.startTime > 1.0f)
+            else if (enemy.phase == EnemyComponent::WAIT && time - enemy.startTime >= 1.0)
             {
                 enemy.phase = EnemyComponent::WALK;
                 enemy.startTime = time;
@@ -496,9 +524,37 @@ class Game {
                 enemyTransform.position.y - playerTransform.position.y
             };
 
+            EntityType entityType = entityRegistry.getComponent<TypeComponent>(enemyEntityId).entityType;
+            SpriteComponent& enemySprite = entityRegistry.getComponent<SpriteComponent>(enemyEntityId);
+
             if (glm::length(enemyVector) > ENEMY_DETECTION_RADIUS)
             {
+                switch (entityType)
+                {
+                case BIG_DEMON:
+                {
+                    break;
+                }
+                case BIG_ZOMBIE:
+                {
+                    setAnimation(enemySprite, BIG_ZOMBIE_IDLE);
+                    break;
+                }
+                }
                 continue;
+            }
+
+            switch (entityType)
+            {
+            case BIG_DEMON:
+            {
+                break;
+            }
+            case BIG_ZOMBIE:
+            {
+                setAnimation(enemySprite, BIG_ZOMBIE_RUN);
+                break;
+            }
             }
 
             if (enemyEntityId == playerEId)
@@ -512,7 +568,7 @@ class Game {
             ColliderComponent& enemyCollider = entityRegistry.getComponent<ColliderComponent>(enemyEntityId);
             if (enemy.phase == EnemyComponent::WALK)
             {
-                f32 distance = deltaTime * enemyEntity.movementSpeed;
+                f32 distance = (f32)deltaTime * enemyEntity.movementSpeed;
 
                 glm::vec2 nextPosition{
                     enemyTransform.position.x - normalizedEnemyVector.x * distance,
@@ -522,10 +578,10 @@ class Game {
                 glm::vec2 newPosition = resolveBasePositionCollision(enemyTransform.position, nextPosition, enemyType);
 
                 // collision with player
-                const glm::vec2 vectorBetween{
-                    playerTransform.position.x - newPosition.x,
-                    playerTransform.position.y - newPosition.y
-                };
+                // const glm::vec2 vectorBetween{
+                //     playerTransform.position.x - newPosition.x,
+                //     playerTransform.position.y - newPosition.y
+                // };
 
                 // const f32 distanceBetween = glm::length(vectorBetween);
 
@@ -534,6 +590,18 @@ class Game {
             }
             else if (enemy.phase == EnemyComponent::SHOOT)
             {
+                switch (entityType)
+                {
+                case BIG_DEMON:
+                {
+                    break;
+                }
+                case BIG_ZOMBIE:
+                {
+                    setAnimation(enemySprite, BIG_ZOMBIE_HIT);
+                    break;
+                }
+                }
                 enemy.phase = EnemyComponent::WAIT;
                 Entity proj = entityRegistry.createEntity();
                 glm::vec2 dir = glm::normalize(playerTransform.position - enemyTransform.position);
@@ -544,7 +612,7 @@ class Game {
                                                                  true);
                 entityRegistry.addComponent<TransformComponent>(proj,
                                                                 enemyTransform.position,
-                                                                TEXTURE_SIZES_WEAPONS[WEAPON_FORK],
+                                                                HIT_BOXES[WEAPON_FORK],
                                                                 (f32)(atan2(dir.y, dir.x) - PI / 2.0f));
                 entityRegistry.addComponent<SpriteComponent>(proj, FORK);
             }
@@ -561,7 +629,6 @@ class Game {
         {
             entityIds[cnt++] = entityId;
         }
-        logDebug("Cnt: %u", cnt);
 
         std::sort(entityIds, entityIds + cnt, [this](const Entity A, const Entity B)
         {
@@ -570,43 +637,46 @@ class Game {
             return aY > bY;
         });
 
-        SpriteComponent playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
+        const SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
         TextureId playerTextureId = ENGINE.getAnimationFrame(playerSprite.animation, playerSprite.startTime);
-        TransformComponent playerTransform = entityRegistry.getComponent<TransformComponent>(playerEId);
+        const TransformComponent& playerTransform = entityRegistry.getComponent<TransformComponent>(playerEId);
         for (u32 i = 0; i < cnt; ++i)
         {
-            SpriteComponent entitySprite = entityRegistry.getComponent<SpriteComponent>(entityIds[i]);
+            const SpriteComponent& entitySprite = entityRegistry.getComponent<SpriteComponent>(entityIds[i]);
             TextureId textureId = ENGINE.getAnimationFrame(entitySprite.animation, entitySprite.startTime);
             TransformComponent entityTransform = entityRegistry.getComponent<TransformComponent>(entityIds[i]);
             if (playerTextureId == textureId)
             {
                 if (cursorPosition.x < 0)
                 {
-                    playerTransform.size.x = -abs(playerTransform.size.x);
+                    entityTransform.size.x = -abs(entityTransform.size.x);
                 }
                 else
                 {
-                    playerTransform.size.x = abs(playerTransform.size.x);
+                    entityTransform.size.x = abs(entityTransform.size.x);
                 }
             }
-            // it's not item
-            else if (entityRegistry.hasComponent<TypeComponent>(entityIds[i]))
+            // it's not item and it's not the player
+            else if (entityRegistry.hasComponent<TypeComponent>(entityIds[i]) && entityIds[i] != playerEId)
             {
-                if (entityIds[i] != playerEId)
+                if (playerTransform.position.x < entityTransform.position.x)
                 {
-                    if (playerTransform.position.x < entityTransform.position.x)
-                    {
-                        entityTransform.size.x = -abs(entityTransform.size.x);
-                    }
-                    else
-                    {
-                        entityTransform.size.x = abs(entityTransform.size.x);
-                    }
+                    entityTransform.size.x = -abs(entityTransform.size.x);
+                }
+                else
+                {
+                    entityTransform.size.x = abs(entityTransform.size.x);
                 }
             }
-            ENGINE.drawTexturedQuad(entityTransform.position, entityTransform.size, textureId, entityTransform.rotation);
+            // draw texture
+            ENGINE.drawTexturedQuad(
+                entityTransform.position,
+                ENTITIES_SIZE_MULTIPLIER * entityTransform.size,
+                textureId,
+                entityTransform.rotation
+            );
         }
-
+        // draw light
         ENGINE.addLight(playerTransform.position, 100.0f, {1.0f, 1.0f, 1.0f, 1.0f});
 
         for (Entity colorId: entityRegistry.iterateEntities<SolidColorComponent, TransformComponent>())
@@ -623,8 +693,8 @@ class Game {
         {
             VelocityComponent& v = entityRegistry.getComponent<VelocityComponent>(vEid);
             TransformComponent& t = entityRegistry.getComponent<TransformComponent>(vEid);
-            v.vel += (v.targetVel - v.vel) * 20.0f * deltaTime;
-            t.position += v.vel * deltaTime;
+            v.vel += (v.targetVel - v.vel) * 20.0f * (f32)deltaTime;
+            t.position += v.vel * (f32)deltaTime;
         }
     }
 
@@ -648,7 +718,7 @@ class Game {
         {
             TransformComponent& projectileSprite = entityRegistry.getComponent<TransformComponent>(projectileId);
             ProjectileComponent& projectile = entityRegistry.getComponent<ProjectileComponent>(projectileId);
-            projectileSprite.position += projectile.direction * projectile.speed * deltaTime;
+            projectileSprite.position += projectile.direction * projectile.speed * (f32)deltaTime;
 
             if (!isOnScreen(projectileSprite.position))
             {
@@ -675,12 +745,13 @@ class Game {
 
                     if (entityStats.healthPoints <= 0.0f)
                     {
-                        entityRegistry.markEntityForDeletion(enemyId);
                         if (enemyId == playerEId)
                         {
                             gameState = GAME_LOST;
                             return;
                         }
+                        // DO NOT MOVE THIS LINE, PLAYER SHOULDN'T BE MARKED FOR DELETION
+                        entityRegistry.markEntityForDeletion(enemyId);
                     }
 
                     //Emit Particles
@@ -699,7 +770,6 @@ class Game {
                 }
             }
         }
-        entityRegistry.removeMarkedEntities();
     }
 
     glm::vec2 getCameraUnits() const
@@ -1079,30 +1149,33 @@ class Game {
             //         getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 2, yPos + 2}),
             //         ENEMIES_STATS[ZOMBIE].tag));
             // logDebug("");
-            addEntity(
-                      baseToSpritePosition(
-                                           getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 3, yPos + 3}),
-                                           BIG_ZOMBIE),
-                      BIG_ZOMBIE,
-                      BIG_ZOMBIE_IDLE);
-            addEntity(
-                      baseToSpritePosition(
-                                           getCenterPositionByTile(glm::uvec2{leftVerticalAxis + width - 4, yPos + 3}),
-                                           BIG_ZOMBIE),
-                      BIG_ZOMBIE,
-                      BIG_ZOMBIE_IDLE);
-            addEntity(
-                      baseToSpritePosition(
-                                           getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 3, yPos + height - 4}),
-                                           BIG_ZOMBIE),
-                      BIG_ZOMBIE,
-                      BIG_ZOMBIE_IDLE);
-            addEntity(
-                      baseToSpritePosition(
-                                           getCenterPositionByTile(glm::uvec2{leftVerticalAxis + width - 4, yPos + height - 4}),
-                                           BIG_ZOMBIE),
-                      BIG_ZOMBIE,
-                      BIG_ZOMBIE_IDLE);
+            if (rooms != 0)
+            {
+                addEntity(
+                        baseToSpritePosition(
+                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 3, yPos + 3}),
+                                            BIG_ZOMBIE),
+                        BIG_ZOMBIE,
+                        BIG_ZOMBIE_IDLE);
+                addEntity(
+                        baseToSpritePosition(
+                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + width - 4, yPos + 3}),
+                                            BIG_ZOMBIE),
+                        BIG_ZOMBIE,
+                        BIG_ZOMBIE_IDLE);
+                addEntity(
+                        baseToSpritePosition(
+                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 3, yPos + height - 4}),
+                                            BIG_ZOMBIE),
+                        BIG_ZOMBIE,
+                        BIG_ZOMBIE_IDLE);
+                addEntity(
+                        baseToSpritePosition(
+                                            getCenterPositionByTile(glm::uvec2{leftVerticalAxis + width - 4, yPos + height - 4}),
+                                            BIG_ZOMBIE),
+                        BIG_ZOMBIE,
+                        BIG_ZOMBIE_IDLE);
+            }
 
             const u32 prevRoomRight = roomRight;
             roomRight = leftVerticalAxis + width - 1;
@@ -1276,6 +1349,11 @@ class Game {
                 CREATE_ANIMATION_ARRAY(BIG_DEMON_RUN);
             }
 
+            case BIG_ZOMBIE_HIT:
+            {
+                CREATE_ANIMATION_ARRAY(BIG_ZOMBIE_HIT);
+            }
+
             case BIG_ZOMBIE_IDLE:
             {
                 CREATE_ANIMATION_ARRAY(BIG_ZOMBIE_IDLE);
@@ -1322,7 +1400,7 @@ class Game {
             }
         }
 
-        ENGINE.createAnimation(tag, resultedArr, frameCount, ANIMATION_SPEED);
+        ENGINE.createAnimation(tag, resultedArr, frameCount, ANIMATION_DURATION[tag] * ANIMATIONS_MULTIPLIER);
     }
 };
 
@@ -1341,9 +1419,9 @@ void gameInput() {
 extern "C"
 __declspec(dllexport)
 void gameUpdate(f64& deltaTime) {
-    GAME->deltaTime = (f32)deltaTime;
+    GAME->deltaTime = deltaTime;
     GAME->gameUpdate();
-    deltaTime = (f64)GAME->deltaTime;
+    deltaTime = GAME->deltaTime;
 }
 
 extern "C"

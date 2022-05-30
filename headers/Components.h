@@ -24,7 +24,8 @@ struct ColliderComponent
 struct SpriteComponent
 {
     AnimationTag animation;
-    f32 startTime;
+    f64 startTime;
+    f64 endTime;
 };
 
 struct SolidColorComponent
