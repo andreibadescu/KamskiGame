@@ -115,6 +115,7 @@ void Game::gameUpdate()
 
         itemPickupSystem();
         velocitySystem();
+        handleCombatPhases();
         updateEnemies();
         updateFollowers();
         updateHealthBars();
@@ -154,6 +155,8 @@ void Game::gameRender()
         renderMap();
         renderSprites();
         ENGINE.drawParticles();
+        if (gameState == GAME_PAUSED)
+            renderItems();
         break;
     }
     renderCursor();
