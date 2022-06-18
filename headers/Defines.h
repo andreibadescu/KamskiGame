@@ -45,22 +45,33 @@ enum class TextureTag: u32
     CIRCLE,
     DEBUG_OVERLAY,
 #endif
-
+    
+    HEALTH_POTION,
+    STAMINA_POTION,
+    MANA_POTION,
+    
     // UI
     BUTTON,
     BUTTON_PRESSED,
     MOUSE_POINTER,
+    STATS_UI,
+    ITEM_HOLDER_START,
+    ITEM_HOLDER_END,
+    ITEM_HOLDER,
+    ITEM_HOLDER_BACKGROUND,
+    ITEM_HOLDER_INVENTORY,
+    STATS_BACKGROUND,
 
     WEAPON_START,
     SWORD_0 = WEAPON_START,
     SWORD_FINAL = SWORD_0,
     SHIELD_0,
     SHIELD_FINAL = SHIELD_0,
-    KNIFE_0,
-    KNIFE_FINAL = KNIFE_0,
     FORK_0,
     FORK_FINAL = FORK_0,
-    WEAPON_END = FORK_FINAL,
+    KNIFE_0,
+    KNIFE_FINAL = KNIFE_0,
+    WEAPON_END = KNIFE_FINAL,
 
     /* MAP TILES, RATIO ALWAYS 1:1 SO ADD THEM ONLY AFTER THIS COMMENT */
     FLOOR_1,
@@ -118,7 +129,9 @@ enum class TextureTag: u32
     WALL_INNER_CORNER_T_TOP_LEFT,
     WALL_INNER_CORNER_T_TOP_RIGHT,
     COLLISION_END = WALL_INNER_CORNER_T_TOP_RIGHT,
-
+    
+    
+    
     // animations
     // ELF_M
     ELF_M_HIT_0,
@@ -231,9 +244,9 @@ enum AnimationTag: u32
     ANIMATION_TAG_WEAPON_START,
     SWORD = ANIMATION_TAG_WEAPON_START,
     SHIELD,
-    KNIFE,
     FORK,
-    ANIMATION_TAG_WEAPON_END = FORK,
+    KNIFE,
+    ANIMATION_TAG_WEAPON_END = KNIFE,
 
     ANIMATION_TAG_COUNT
 };
@@ -257,8 +270,8 @@ enum Weapon: u32
 {
     WEAPON_SWORD,
     WEAPON_SHIELD,
-    WEAPON_KNIFE,
     WEAPON_FORK,
+    WEAPON_KNIFE,
     WEAPON_COUNT
 };
 
@@ -310,18 +323,20 @@ inline constexpr glm::vec2 HIT_BOXES[]{
 };
 
 inline constexpr glm::vec2 HIT_BOXES_WEAPONS[]{
-    [WEAPON_FORK] = {15.0f, 21.0f}
+    [WEAPON_FORK] = {15.0f, 21.0f},
+    [WEAPON_KNIFE] = {8.0f, 19.5f} 
 };
 
 inline constexpr glm::vec2 TEXTURE_SIZES[]{
     [ELF_M]      = {16.0f, 28.0f},
     [ELF_F]      = {15.0f, 18.0f},
-    [BIG_DEMON]  = {10.0f, 10.0f},
+    [BIG_DEMON]  = {32.0f, 36.0f},
     [BIG_ZOMBIE] = {32.0f, 34.0f}
 };
 
 inline constexpr glm::vec2 TEXTURE_SIZES_WEAPONS[]{
-    [WEAPON_FORK] = {12.0f, 26.0f}
+    [WEAPON_FORK] = {12.0f, 26.0f},
+    [WEAPON_KNIFE] = {6.0f, 13.0f} 
 };
 
 inline constexpr f32 ANIMATION_DURATION[] = {
@@ -407,10 +422,20 @@ inline const char* TEXTURE_PATHS[] = {
     [TAG(CIRCLE)]                        = TEXTURE_ASSET("circle.png"),
     [TAG(DEBUG_OVERLAY)]                 = TEXTURE_ASSET("debug_overlay.png"),
 #endif
-
+    [TAG(HEALTH_POTION)]                 = ITEM_ASSET("health_potion.png"),
+    [TAG(STAMINA_POTION)]                = ITEM_ASSET("stamina_potion.png"),
+    [TAG(MANA_POTION)]                   = ITEM_ASSET("mana_potion.png"),
+    
     [TAG(BUTTON)]                        = UI_ASSET("button.png"),
     [TAG(BUTTON_PRESSED)]                = UI_ASSET("button_press.png"),
     [TAG(MOUSE_POINTER)]                 = UI_ASSET("mouse_pointer.png"),
+    [TAG(STATS_UI)]                      = UI_ASSET("stats_ui.png"),
+    [TAG(ITEM_HOLDER_START)]             = UI_ASSET("item_holder_start.png"),
+    [TAG(ITEM_HOLDER_END)]               = UI_ASSET("item_holder_end.png"),
+    [TAG(ITEM_HOLDER)]                   = UI_ASSET("item_holder.png"),
+    [TAG(ITEM_HOLDER_BACKGROUND)]        = UI_ASSET("item_holder_background.png"),
+    [TAG(ITEM_HOLDER_INVENTORY)]         = UI_ASSET("item_holder_inventory.png"),
+    [TAG(STATS_BACKGROUND)]              = UI_ASSET("stats_background.png"),
 
     [TAG(SWORD_0)]                       = WEAPON_ASSET("weapon_sword.png"),
     [TAG(SHIELD_0)]                      = WEAPON_ASSET("weapon_shield.png"),
