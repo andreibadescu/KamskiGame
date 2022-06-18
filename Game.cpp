@@ -670,6 +670,10 @@ class Game {
         else
         {
             setAnimation(playerSprite, ELF_M_IDLE);
+            if(hasUtility(UTILITY_STOPWATCH))
+            {
+                deltaTime /= 2.0;
+            }
         }
         
         playerTransform.position = resolveBasePositionCollision(playerTransform.position - v.vel * (f32)deltaTime, playerTransform.position, ENTITY_TYPE_PLAYER);
@@ -1697,6 +1701,7 @@ void gameInput() {
 
 extern "C"
 __declspec(dllexport)
+
 void gameUpdate(f64& deltaTime) {
     GAME->deltaTime = deltaTime;
     GAME->gameUpdate();

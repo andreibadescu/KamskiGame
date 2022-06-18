@@ -130,6 +130,9 @@ void Game::gameUpdate()
             {
                 ent.healthPoints += 20;
             }
+            
+            updatePlayer();
+            
             updateFollowers();
             
             itemPickupSystem();
@@ -139,7 +142,6 @@ void Game::gameUpdate()
             updateEnemies();
             updateHealthBars();
             moveProjectiles();
-            updatePlayer();
             break;
         }
         [[unlikely]]
