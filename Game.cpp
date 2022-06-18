@@ -32,6 +32,8 @@ class Game {
         u32 roomCount;
     };
     
+    u32 itemId;
+    
     enum CombatPhase
     {
         COMBAT_PHASE_OFF,
@@ -79,6 +81,10 @@ class Game {
                 KeyState zoomOut;
                 KeyState pauseGame;
                 KeyState menuInteract;
+                KeyState hp;
+                KeyState stam;
+                KeyState mana;
+                KeyState fastRestart;
             } actionState;
             
             glm::vec2 cursorPosition;
@@ -114,36 +120,80 @@ class Game {
     
     void enterRoom(u32 roomIndex)
     {
+        static u64 seed = std::random_device()();
         assert(roomIndex < map.roomCount);
         Map::Room& room = map.rooms[roomIndex];
+        if(roomIndex == map.roomCount - 1)
+        {
+            Entity eId = entityRegistry.createEntity();
+            
+            entityRegistry.addComponent<TransformComponent>(eId, room.center, glm::vec2(180.0f, 260.0f));
+            entityRegistry.addComponent<TypeComponent>(eId, BIG_DEMON);
+            entityRegistry.addComponent<ColliderComponent>(eId, glm::vec2(180.0f, 260.0f));
+            entityRegistry.addComponent<SpriteComponent>(eId, BIG_DEMON_IDLE);
+            entityRegistry.addComponent<EntityComponent>(eId, ENTITIES_STATS[BIG_DEMON]);
+            entityRegistry.addComponent<EnemyComponent>(eId, EnemyComponent::WALK, (f32)ENGINE.getGameTime());
+            
+            Entity healthBarId = entityRegistry.createEntity();
+            
+            entityRegistry.addComponent<TransformComponent>(healthBarId, glm::vec2{0.0f, 0.0f}, glm::vec2{180.0f, HEALTH_BAR_HEIGHT}, 0.0f);
+            entityRegistry.addComponent<SolidColorComponent>(healthBarId, glm::vec4{1.0f, 0.0f, 0.0f, 1.0f});
+            entityRegistry.addComponent<FollowComponent>(healthBarId, eId, glm::vec2{0.0f, 260.0f / 2.0f + HEALTH_BAR_HEIGHT_OFFSET});
+            entityRegistry.addComponent<HealthBarComponent>(healthBarId, 180.0f, ENTITIES_STATS[BIG_DEMON].healthPoints);
+            
+            EntityComponent& ent = entityRegistry.getComponent<EntityComponent>(playerEId);
+            ent.attackPoints = 0.1f;
+            itemSet.weapons &= ~BIT(WEAPON_SWORD);
+        } else
+        {
+            
+            AnimationTag tag;
+            EntityType type;
+            
+            if(ENGINE.randomU64(seed) % 2 == 0)
+            {
+                type = BIG_DEMON; 
+                tag = BIG_DEMON_IDLE;
+            }
+            else
+            {
+                type = BIG_ZOMBIE; 
+                tag = BIG_ZOMBIE_IDLE;
+            }
+            
+            glm::vec2 roomSize = room.size;
+            addEntity(glm::vec2(room.center + roomSize / 4.0f),
+                      type,
+                      tag);
+            
+            roomSize = {-room.size.x, room.size.y}; 
+            
+            addEntity(glm::vec2(room.center + roomSize / 4.0f),
+                      type,
+                      tag);
+            
+            roomSize = {-room.size.x, -room.size.y}; 
+            
+            addEntity(glm::vec2(room.center + roomSize / 4.0f),
+                      type,
+                      tag);
+            
+            roomSize = {room.size.x, -room.size.y}; 
+            
+            addEntity(glm::vec2(room.center + roomSize / 4.0f),
+                      type,
+                      tag);
+        }
         
-        glm::vec2 roomSize = room.size;
-        addEntity(glm::vec2(room.center + roomSize / 4.0f),
-                  BIG_ZOMBIE,
-                  BIG_ZOMBIE_IDLE);
-        
-        roomSize = {-room.size.x, room.size.y}; 
-        
-        addEntity(glm::vec2(room.center + roomSize / 4.0f),
-                  BIG_ZOMBIE,
-                  BIG_ZOMBIE_IDLE);
-        
-        roomSize = {-room.size.x, -room.size.y}; 
-        
-        addEntity(glm::vec2(room.center + roomSize / 4.0f),
-                  BIG_ZOMBIE,
-                  BIG_ZOMBIE_IDLE);
-        
-        roomSize = {room.size.x, -room.size.y}; 
-        
-        addEntity(glm::vec2(room.center + roomSize / 4.0f),
-                  BIG_ZOMBIE,
-                  BIG_ZOMBIE_IDLE);
         combatPhase = COMBAT_PHASE_ON;
+        
     }
     
     void handleCombatPhases()
     {
+        static u32 roomIndex = 0;
+        static u64 seed = std::random_device()();
+        
         if(combatPhase == COMBAT_PHASE_ON)
         {
             ComponentVector<EnemyComponent>& enemies = entityRegistry.getComponentVector<EnemyComponent>();
@@ -151,6 +201,27 @@ class Game {
             {
                 //ENDS COMBAT
                 // opens doors and drops item
+                Map::Room room = map.rooms[roomIndex];
+                
+                ItemType type = ITEM_TYPE_WEAPON;//ENGINE.randomRangeU64(0, 3);
+                ItemBit bit = ENGINE.randomRangeU64(seed, 0, 2);
+                AnimationTag aniTag = SWORD;
+                
+                switch(bit)
+                {
+                    case WEAPON_FORK:
+                    {
+                        aniTag = FORK;
+                    }break;
+                    
+                    case WEAPON_SHIELD:
+                    {
+                        aniTag = SHIELD;
+                    }break;    
+                }
+                
+                addItem(room.center, type, bit, aniTag);
+                
                 combatPhase = COMBAT_PHASE_OFF;
             }
         } else
@@ -164,12 +235,14 @@ class Game {
                 if(isCollision(tr.position, map.rooms[i].entranceLeftBottom,
                                col.hitBox, map.quadSize))
                 {
+                    roomIndex = i;
                     enterRoom(i);
                     return;
                 }
                 if(isCollision(tr.position, map.rooms[i].entranceLeftTop,
                                col.hitBox, map.quadSize))
                 {
+                    roomIndex = i;
                     enterRoom(i);
                     return;
                 }
@@ -202,9 +275,9 @@ class Game {
                 f32 zoom = (5.0f - (4.0f - menuTime)) / 5.0f;
                 logDebug("zoom = %f", zoom);                
                 ENGINE.drawTexturedQuad({}, 
-                                ENGINE.getScreenSize() * zoom, 
-                                getTextureIdByTag(tags[menuTagIndex]), 
-                                0);
+                                        ENGINE.getScreenSize() * zoom, 
+                                        getTextureIdByTag(tags[menuTagIndex]), 
+                                        0);
                 if(menuTime >= 4.0f)
                 {
                     menuTime = 0.0f;
@@ -286,6 +359,8 @@ class Game {
             TransformComponent& toFollowTransform = transforms.getComponent(follower.toFollowId);
             followerTransform.position = toFollowTransform.position + follower.followOffset;
         }
+        
+        entityRegistry.removeMarkedEntities();
     }
     
     void updateHealthBars()
@@ -303,8 +378,10 @@ class Game {
             f32 healthPoints = entityRegistry.getComponent<EntityComponent>(follower.toFollowId).healthPoints;
             healthBarComponent.size.x = healthBar.maxSize * healthPoints / healthBar.maxHealth;
         }
+        entityRegistry.removeMarkedEntities();
+        
     }
-     
+    
     const char* getItemDescription(ItemType type, ItemBit bit)
     {
         switch (type)
@@ -314,19 +391,19 @@ class Game {
                 switch (bit)
                 {
                     case WEAPON_SHIELD:
-                    return "Shield:\nReduces knockback from enemies by 80%";
+                    return " Shield:\n Reduces knockback from enemies by 80% ";
                     case WEAPON_FORK:
-                    return "Fork:\nAttacks now shoot forks in the cursor's direction";
+                    return " Fork:\n Attacks now shoot forks in the cursor's direction ";
                     case WEAPON_SWORD:
-                    return "Sword:\nAttacks deal extra damage";
+                    return " Sword:\n Attacks deal extra damage ";
                 }
             }break;
-
+            
             case ITEM_TYPE_ARMOUR:
             {
                 return "Armour:\nAdds 1 armor";
             }break;
-
+            
             case ITEM_TYPE_UTILITY:
             {
                 switch (bit)
@@ -339,15 +416,43 @@ class Game {
                     return "Rope:\nNothing";
                 }
             }break;
-
-
+            
+            
         }
     }
-
+    
     void renderItems()
     {
-        glm::vec2 itemFrameSize = {125,125};
-        f32 itemCount = 0;
+        // Inventory
+        glm::vec2 itemHolderBackgroundPos = ENGINE.uiTexture(glm::vec2{-260.0f, -200.0f}, glm::vec2{958.0f, 815.0f}, AnchorPoint::C, ID(ITEM_HOLDER_BACKGROUND));
+        ENGINE.drawTextUI(glm::vec2{itemHolderBackgroundPos.x - 250.0f, itemHolderBackgroundPos.y + 450.0f}, 1200.0f, "Inventory");
+        glm::vec2 inventorySlotPos[5*6];
+        for(u32 y=0;y<5;y++)
+            for(u32 x=0;x<6;x++)
+        {
+            inventorySlotPos[y*6 + x] = glm::vec2{itemHolderBackgroundPos.x - 375.0f + x*150.0f, itemHolderBackgroundPos.y + 300.0f - y*150.0f};
+            ENGINE.drawUITex(inventorySlotPos[y*6 + x], glm::vec2{150, 150}, ID(ITEM_HOLDER_INVENTORY));
+            
+        }
+        
+        const EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
+        char buffer[255];
+        
+        //Stats
+        glm::vec2 statsBackgroundPos = ENGINE.uiTexture(glm::vec2{+500.0f, -200.0f}, glm::vec2{479.0f, 815.0f}, AnchorPoint::C, ID(ITEM_HOLDER_BACKGROUND));
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 100.0f, statsBackgroundPos.y + 450.0f}, 1200.0f, "Stats");
+        sprintf(buffer, "Health: %.1f", playerEntity.healthPoints);
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f}, 500.0f, buffer);
+        sprintf(buffer, "Speed: %.1f", playerEntity.movementSpeed);
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*1}, 500.0, buffer);
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*2}, 500.0f, "Stamina: ");
+        sprintf(buffer, "Strength: %.1f", playerEntity.attackPoints);
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*3}, 500.0f, buffer);
+        ENGINE.drawTextUI(glm::vec2{statsBackgroundPos.x - 200.0f, statsBackgroundPos.y + 300.0f - 75.0f*4}, 500.0f, "Dexterity: ");
+        ENGINE.drawUITex(glm::vec2{statsBackgroundPos.x, statsBackgroundPos.y - 250.0f}, TEXTURE_SIZES[ELF_M]*10.0f, ID(ELF_M_IDLE_0));
+        
+        glm::vec2 itemFrameSize = {100,100};
+        u32 itemCount = 0;
         glm::vec2 buttonSize = {
             ENGINE.getScreenSize().x / 3.0f,
             ENGINE.getScreenSize().y / 6.5f
@@ -357,81 +462,81 @@ class Game {
         {
             if (hasWeapon(i))
             {
-                if (ENGINE.uiButtonHover(glm::vec2(itemFrameSize.x * itemCount, 0),
-                                        itemFrameSize,
-                                        AnchorPoint::C,
-                                        getTextureIdByItem(ITEM_TYPE_WEAPON, i),
-                                        getTextureIdByItem(ITEM_TYPE_WEAPON, i)))
+                if (ENGINE.uiButtonHover(inventorySlotPos[itemCount],
+                                         itemFrameSize,
+                                         AnchorPoint::C,
+                                         getTextureIdByItem(ITEM_TYPE_WEAPON, i),
+                                         getTextureIdByItem(ITEM_TYPE_WEAPON, i)))
                 {
-                    ENGINE.uiButtonText(glm::vec2(cursorPosition.x, (itemFrameSize.y + buttonSize.y) / 2.0f),
-                                        buttonSize,
-                                        AnchorPoint::C,
-                                        ID(BUTTON),
-                                        fontSize,
-                                        getItemDescription(ITEM_TYPE_WEAPON, i));
+                    ENGINE.drawUITex(glm::vec2{cursorPosition.x + buttonSize.x/2, cursorPosition.y + buttonSize.y/2}, buttonSize, ID(BUTTON));
+                    ENGINE.drawTextInsideBoxUI(glm::vec2{cursorPosition.x, cursorPosition.y + buttonSize.y},
+                                               glm::vec2{cursorPosition.x + buttonSize.x, cursorPosition.y},
+                                               fontSize,
+                                               getItemDescription(ITEM_TYPE_WEAPON, i),
+                                               30.0f);
                 }
                 itemCount++;
             }
         }
-
+        
         for (ItemBit i = 0; i != ARMOUR_COUNT; i++)
         {
             if (hasArmour(i))
             {
-                if (ENGINE.uiButtonHover(glm::vec2(itemFrameSize.x * itemCount, 0),
-                                        itemFrameSize,
-                                        AnchorPoint::C,
-                                        getTextureIdByItem(ITEM_TYPE_ARMOUR, i),
-                                        getTextureIdByItem(ITEM_TYPE_ARMOUR, i)))
+                if (ENGINE.uiButtonHover(inventorySlotPos[itemCount],
+                                         itemFrameSize,
+                                         AnchorPoint::C,
+                                         getTextureIdByItem(ITEM_TYPE_ARMOUR, i),
+                                         getTextureIdByItem(ITEM_TYPE_ARMOUR, i)))
                 {
-                    ENGINE.uiButtonText(glm::vec2(cursorPosition.x, (itemFrameSize.y + buttonSize.y) / 2.0f),
-                                        buttonSize,
-                                        AnchorPoint::C,
-                                        ID(BUTTON),
-                                        fontSize,
-                                        getItemDescription(ITEM_TYPE_ARMOUR, i));
+                    ENGINE.drawUITex(glm::vec2{cursorPosition.x + buttonSize.x/2, cursorPosition.y + buttonSize.y/2}, buttonSize, ID(BUTTON));
+                    ENGINE.drawTextInsideBoxUI(glm::vec2{cursorPosition.x, cursorPosition.y + buttonSize.y},
+                                               glm::vec2{cursorPosition.x + buttonSize.x, cursorPosition.y},
+                                               fontSize,
+                                               getItemDescription(ITEM_TYPE_ARMOUR, i),
+                                               30.0f);
                 }
                 itemCount++;
             }
         }
-
+        
         for (ItemBit i = 0; i != UTILITY_COUNT; i++)
         {
             if (hasUtility(i))
             {
-                if (ENGINE.uiButtonHover(glm::vec2(itemFrameSize.x * itemCount, 0),
-                                        itemFrameSize,
-                                        AnchorPoint::C,
-                                        getTextureIdByItem(ITEM_TYPE_UTILITY, i),
-                                        getTextureIdByItem(ITEM_TYPE_UTILITY, i)))
+                if (ENGINE.uiButtonHover(inventorySlotPos[itemCount],
+                                         itemFrameSize,
+                                         AnchorPoint::C,
+                                         getTextureIdByItem(ITEM_TYPE_UTILITY, i),
+                                         getTextureIdByItem(ITEM_TYPE_UTILITY, i)))
                 {
-                    ENGINE.uiButtonText(glm::vec2(cursorPosition.x, (itemFrameSize.y + buttonSize.y) / 2.0f),
-                                        buttonSize,
-                                        AnchorPoint::C,
-                                        ID(BUTTON),
-                                        fontSize,
-                                        getItemDescription(ITEM_TYPE_UTILITY, i));
+                    ENGINE.drawUITex(glm::vec2{cursorPosition.x + buttonSize.x/2, cursorPosition.y + buttonSize.y/2}, buttonSize, ID(BUTTON));
+                    ENGINE.drawTextInsideBoxUI(glm::vec2{cursorPosition.x, cursorPosition.y + buttonSize.y},
+                                               glm::vec2{cursorPosition.x + buttonSize.x, cursorPosition.y},
+                                               fontSize,
+                                               getItemDescription(ITEM_TYPE_UTILITY, i),
+                                               30.0f);
                 }
                 itemCount++;
             }
         }
     }
-
+    
     u32 hasWeapon(ItemBit weapon)
     {
         return itemSet.weapons >> weapon & 1;
     }
-
+    
     u32 hasArmour(ItemBit armour)
     {
         return itemSet.armours >> armour & 1;
     }
-
+    
     bool hasUtility(ItemBit utility)
     {
         return itemSet.utility & BIT(utility);
     }
-
+    
     void itemPickupSystem()
     {
         TransformComponent& playerSprite = entityRegistry.getComponent<TransformComponent>(playerEId);
@@ -451,12 +556,12 @@ class Game {
                     {
                         itemSet.weapons |= BIT(item.itemId);
                     }break;
-
+                    
                     case ITEM_TYPE_ARMOUR:
                     {
                         itemSet.armours |= BIT(item.itemId);
                     }break;
-
+                    
                     case ITEM_TYPE_UTILITY:
                     {
                         itemSet.utility|= BIT(item.itemId);
@@ -466,17 +571,19 @@ class Game {
                 entityRegistry.markEntityForDeletion(eId);
             }
         }
+        
+        entityRegistry.removeMarkedEntities();
     }
-
+    
     void addPlayer(glm::vec2 position, EntityType playerType, AnimationTag animationTag)
     {
         Entity eId = entityRegistry.createEntity();
         playerEId = eId;
-
+        
         camera = {position.x, position.y, DEFAULT_CAMERA_ZOOM};
-
+        
         playerRadius = calcRadiusOfEntity(playerType);
-
+        
         entityRegistry.addComponent<TransformComponent>(eId, position, TEXTURE_SIZES[playerType], 0.0f);
         entityRegistry.addComponent<TypeComponent>(eId, playerType);
         entityRegistry.addComponent<ColliderComponent>(eId, HIT_BOXES[playerType]);
@@ -484,40 +591,41 @@ class Game {
         entityRegistry.addComponent<EntityComponent>(eId, ENTITIES_STATS[playerType]);
         entityRegistry.addComponent<VelocityComponent>(eId, glm::vec2{}, glm::vec2{});
     }
-
+    
     void addEntity(glm::vec2 position, EntityType enemyType, AnimationTag animationTag)
     {
         Entity eId = entityRegistry.createEntity();
-
+        
         entityRegistry.addComponent<TransformComponent>(eId, position, TEXTURE_SIZES[enemyType], 0.0f);
         entityRegistry.addComponent<TypeComponent>(eId, enemyType);
         entityRegistry.addComponent<ColliderComponent>(eId, HIT_BOXES[enemyType]);
         entityRegistry.addComponent<SpriteComponent>(eId, animationTag);
         entityRegistry.addComponent<EntityComponent>(eId, ENTITIES_STATS[enemyType]);
         entityRegistry.addComponent<EnemyComponent>(eId, EnemyComponent::WALK, (f32)ENGINE.getGameTime());
-
+        
         Entity healthBarId = entityRegistry.createEntity();
-
+        
         entityRegistry.addComponent<TransformComponent>(healthBarId, glm::vec2{0.0f, 0.0f}, glm::vec2{HIT_BOXES[enemyType].x, HEALTH_BAR_HEIGHT}, 0.0f);
         entityRegistry.addComponent<SolidColorComponent>(healthBarId, glm::vec4{1.0f, 0.0f, 0.0f, 1.0f});
         entityRegistry.addComponent<FollowComponent>(healthBarId, eId, glm::vec2{0.0f, HIT_BOXES[enemyType].y / 2.0f + HEALTH_BAR_HEIGHT_OFFSET});
         entityRegistry.addComponent<HealthBarComponent>(healthBarId, HIT_BOXES[enemyType].x, ENTITIES_STATS[enemyType].healthPoints);
     }
-
+    
     void addItem(glm::vec2 position, ItemType type, ItemBit bit, AnimationTag animationTag)
     {
         Entity itemEId = entityRegistry.createEntity();
+        itemId = itemEId;
         entityRegistry.addComponent<TransformComponent>(itemEId, position, glm::vec2{25.0f, 25.0f}, 0.0f);
         entityRegistry.addComponent<ItemComponent>(itemEId, type, bit);
         entityRegistry.addComponent<SpriteComponent>(itemEId, animationTag);
         entityRegistry.addComponent<ColliderComponent>(itemEId, glm::vec2{25.0f, 25.0f});
     }
-
+    
     bool isAnimationLocked(const SpriteComponent& sprite)
     {
         return ENGINE.getGameTime() < sprite.endTime;
     }
-
+    
     void setAnimation(SpriteComponent& sprite, AnimationTag tag)
     {
         if (sprite.animation == tag || isAnimationLocked(sprite))
@@ -526,19 +634,19 @@ class Game {
         sprite.startTime = ENGINE.getGameTime();
         sprite.endTime = sprite.startTime + ANIMATION_COOLDOWN[tag];
     }
-
+    
     void updatePlayerPosition()
     {
         if (actionState.zoomIn == KeyState::HOLD)
         {
             camera.z += camera.z * deltaTime;
         }
-
+        
         if (actionState.zoomOut == KeyState::HOLD)
         {
             camera.z -= camera.z * deltaTime;
         }
-
+        
         glm::vec2 direction{0.0f, 0.0f};
         if (actionState.walkUp == KeyState::HOLD || actionState.walkUp == KeyState::PRESS)
             direction += glm::vec2{0.0f, +1.0f};
@@ -548,12 +656,12 @@ class Game {
             direction += glm::vec2{-1.0f, 0.0f};
         if (actionState.walkRight == KeyState::HOLD || actionState.walkRight == KeyState::PRESS)
             direction += glm::vec2{+1.0f, 0.0f};
-
+        
         TransformComponent& playerTransform = entityRegistry.getComponent<TransformComponent>(playerEId);
         EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
         VelocityComponent& v = entityRegistry.getComponent<VelocityComponent>(playerEId);
         v.targetVel = direction * playerEntity.movementSpeed;
-
+        
         SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
         if (v.targetVel.x != 0.0f || v.targetVel.y != 0.0f)
         {
@@ -563,7 +671,7 @@ class Game {
         {
             setAnimation(playerSprite, ELF_M_IDLE);
         }
-
+        
         playerTransform.position = resolveBasePositionCollision(playerTransform.position - v.vel * (f32)deltaTime, playerTransform.position, ENTITY_TYPE_PLAYER);
         
         f32 len = glm::length(cursorPosition);
@@ -573,24 +681,24 @@ class Game {
         camera.x = playerTransform.position.x + offset.x / 20.0f;
         camera.y = playerTransform.position.y + offset.y / 20.0f;
     }
-
+    
     void renderCursor()
     {
         ENGINE.uiTexture(cursorPosition, {50.0f,50.0f}, AnchorPoint::C, getTextureIdByTag(TextureTag::MOUSE_POINTER));
     }
-
+    
     void updatePlayerHealth()
     {
         TransformComponent& playerTransform = entityRegistry.getComponent<TransformComponent>(playerEId);
         ColliderComponent& playerCollider = entityRegistry.getComponent<ColliderComponent>(playerEId);
         EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
         VelocityComponent& playerVel = entityRegistry.getComponent<VelocityComponent>(playerEId);
-
+        
         for (Entity enemyId: entityRegistry.iterateEntities<TransformComponent, EntityComponent, ColliderComponent>())
         {
             if (entityRegistry.getComponent<TypeComponent>(enemyId).entityType == ENTITY_TYPE_PLAYER)
                 continue;
-
+            
             TransformComponent& enemyTransform = entityRegistry.getComponent<TransformComponent>(enemyId);
             ColliderComponent& enemyCollider = entityRegistry.getComponent<ColliderComponent>(playerEId);
             if (isCollision(playerTransform.position, enemyTransform.position,
@@ -599,13 +707,13 @@ class Game {
                 f32 armourCount = (f32)(hasArmour(ARMOUR_CHESTPLATE) + hasArmour(ARMOUR_HELMET) + hasArmour(ARMOUR_PANTS));
                 f32 enemyAttackPoints = entityRegistry.getComponent<EntityComponent>(enemyId).attackPoints;
                 playerEntity.healthPoints -= enemyAttackPoints / (1.0f + armourCount);
-
+                
                 glm::vec2 dir = glm::normalize(playerTransform.position - enemyTransform.position);
                 if (hasWeapon(WEAPON_SHIELD))
                     playerVel.vel += dir * 100.0f;
                 else
                     playerVel.vel += dir * 500.0f;
-
+                
                 if (playerEntity.healthPoints <= 0.0f)
                 {
                     gameState = GAME_LOST;
@@ -614,7 +722,7 @@ class Game {
             }
         }
     }
-
+    
     void updatePlayerAttack()
     {
         if (playerAttackTimer > 0.0)
@@ -634,24 +742,24 @@ class Game {
             // cursorPosition is not affected by the camera position in calculations.
             //To convert cursorPosition to actual world Position you have to add the camera position to it
             EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
-
+            
             Entity projectileId = entityRegistry.createEntity();
             glm::vec2 playerPos = entityRegistry.getComponent<TransformComponent>(playerEId).position;
             glm::vec2 directionVector = glm::normalize(cursorPosition + glm::vec2{camera.x, camera.y} - playerPos);
-
+            
             entityRegistry.addComponent<ProjectileComponent>(projectileId, directionVector, 400.0f,
-                playerEntity.attackPoints + (50.0f * (f32)hasWeapon(WEAPON_SWORD)), false);
-
+                                                             playerEntity.attackPoints + (50.0f * (f32)hasWeapon(WEAPON_SWORD)), false);
+            
             entityRegistry.addComponent<TransformComponent>(projectileId, playerPos, TEXTURE_SIZES_WEAPONS[WEAPON_FORK],
-                (f32)(atan2(directionVector.y, directionVector.x) - PI / 2.0f));
-
+                                                            (f32)(atan2(directionVector.y, directionVector.x) - PI / 2.0f));
+            
             // TO-DO collision with hitbox
             // entityRegistry.addComponent<ColliderComponent>();
-
+            
             entityRegistry.addComponent<SpriteComponent>(projectileId, FORK);
         }
     }
-
+    
     void updatePlayer()
     {
         updatePlayerPosition();
@@ -659,7 +767,7 @@ class Game {
         updatePlayerHealth();
         const SpriteComponent& player = entityRegistry.getComponent<SpriteComponent>(playerEId);
     }
-
+    
     /* Custom collision */
     void updateEnemies()
     {
@@ -677,9 +785,9 @@ class Game {
                 enemy.startTime = time;
             }
         }
-
+        
         const TransformComponent& playerTransform = entityRegistry.getComponent<TransformComponent>(playerEId);
-
+        
         for (Entity enemyEntityId: entityRegistry.iterateEntities<TransformComponent, EntityComponent>())
         {
             TransformComponent& enemyTransform = entityRegistry.getComponent<TransformComponent>(enemyEntityId);
@@ -687,45 +795,47 @@ class Game {
                 enemyTransform.position.x - playerTransform.position.x,
                 enemyTransform.position.y - playerTransform.position.y
             };
-
+            
             EntityType entityType = entityRegistry.getComponent<TypeComponent>(enemyEntityId).entityType;
             SpriteComponent& enemySprite = entityRegistry.getComponent<SpriteComponent>(enemyEntityId);
-
+            
             if (glm::length(enemyVector) > ENEMY_DETECTION_RADIUS)
             {
                 switch (entityType)
                 {
+                    case BIG_DEMON:
+                    {
+                        setAnimation(enemySprite, BIG_DEMON_IDLE);
+                        break;
+                    }
+                    case BIG_ZOMBIE:
+                    {
+                        setAnimation(enemySprite, BIG_ZOMBIE_IDLE);
+                        break;
+                    }
+                }
+                continue;
+            }
+            
+            switch (entityType)
+            {
                 case BIG_DEMON:
                 {
+                    setAnimation(enemySprite, BIG_DEMON_RUN);
                     break;
                 }
                 case BIG_ZOMBIE:
                 {
-                    setAnimation(enemySprite, BIG_ZOMBIE_IDLE);
+                    setAnimation(enemySprite, BIG_ZOMBIE_RUN);
                     break;
                 }
-                }
-                continue;
             }
-
-            switch (entityType)
-            {
-            case BIG_DEMON:
-            {
-                break;
-            }
-            case BIG_ZOMBIE:
-            {
-                setAnimation(enemySprite, BIG_ZOMBIE_RUN);
-                break;
-            }
-            }
-
+            
             if (enemyEntityId == playerEId)
             {
                 continue;
             }
-
+            
             glm::vec2 normalizedEnemyVector = glm::normalize(enemyVector);
             EntityComponent& enemyEntity = entityRegistry.getComponent<EntityComponent>(enemyEntityId);
             EnemyComponent& enemy = entityRegistry.getComponent<EnemyComponent>(enemyEntityId);
@@ -733,22 +843,22 @@ class Game {
             if (enemy.phase == EnemyComponent::WALK)
             {
                 f32 distance = (f32)deltaTime * enemyEntity.movementSpeed;
-
+                
                 glm::vec2 nextPosition{
                     enemyTransform.position.x - normalizedEnemyVector.x * distance,
                     enemyTransform.position.y - normalizedEnemyVector.y * distance
                 };
                 EntityType enemyType = entityRegistry.getComponent<TypeComponent>(enemyEntityId).entityType;
                 glm::vec2 newPosition = resolveBasePositionCollision(enemyTransform.position, nextPosition, enemyType);
-
+                
                 // collision with player
                 // const glm::vec2 vectorBetween{
                 //     playerTransform.position.x - newPosition.x,
                 //     playerTransform.position.y - newPosition.y
                 // };
-
+                
                 // const f32 distanceBetween = glm::length(vectorBetween);
-
+                
                 enemyTransform.position.x = newPosition.x;
                 enemyTransform.position.y = newPosition.y;
             }
@@ -756,15 +866,15 @@ class Game {
             {
                 switch (entityType)
                 {
-                case BIG_DEMON:
-                {
-                    break;
-                }
-                case BIG_ZOMBIE:
-                {
-                    setAnimation(enemySprite, BIG_ZOMBIE_HIT);
-                    break;
-                }
+                    case BIG_DEMON:
+                    {
+                        break;
+                    }
+                    case BIG_ZOMBIE:
+                    {
+                        setAnimation(enemySprite, BIG_ZOMBIE_HIT);
+                        break;
+                    }
                 }
                 enemy.phase = EnemyComponent::WAIT;
                 Entity proj = entityRegistry.createEntity();
@@ -776,31 +886,31 @@ class Game {
                                                                  true);
                 entityRegistry.addComponent<TransformComponent>(proj,
                                                                 enemyTransform.position,
-                                                                HIT_BOXES[WEAPON_FORK],
+                                                                HIT_BOXES_WEAPONS[WEAPON_KNIFE],
                                                                 (f32)(atan2(dir.y, dir.x) - PI / 2.0f));
-                entityRegistry.addComponent<SpriteComponent>(proj, FORK);
+                entityRegistry.addComponent<SpriteComponent>(proj, KNIFE);
             }
         }
     }
-
+    
     void renderSprites()
     {
         u32 cnt = 0;
         ComponentVector<SpriteComponent>& sprites = entityRegistry.getComponentVector<SpriteComponent>();
         Entity* entityIds = (Entity*)(ENGINE.temporaryAlloc(sprites.size() * sizeof(Entity)));
-
+        
         for (Entity entityId: sprites.iterateEntities())
         {
             entityIds[cnt++] = entityId;
         }
-
+        
         std::sort(entityIds, entityIds + cnt, [this](const Entity A, const Entity B)
-        {
-            const f32 aY = entityRegistry.getComponent<TransformComponent>(A).position.y;
-            const f32 bY = entityRegistry.getComponent<TransformComponent>(B).position.y;
-            return aY > bY;
-        });
-
+                  {
+                      const f32 aY = entityRegistry.getComponent<TransformComponent>(A).position.y;
+                      const f32 bY = entityRegistry.getComponent<TransformComponent>(B).position.y;
+                      return aY > bY;
+                  });
+        
         const SpriteComponent& playerSprite = entityRegistry.getComponent<SpriteComponent>(playerEId);
         TextureId playerTextureId = ENGINE.getAnimationFrame(playerSprite.animation, playerSprite.startTime);
         const TransformComponent& playerTransform = entityRegistry.getComponent<TransformComponent>(playerEId);
@@ -834,23 +944,50 @@ class Game {
             }
             // draw texture
             ENGINE.drawTexturedQuad(
-                entityTransform.position,
-                ENTITIES_SIZE_MULTIPLIER * entityTransform.size,
-                textureId,
-                entityTransform.rotation
-            );
+                                    entityTransform.position,
+                                    ENTITIES_SIZE_MULTIPLIER * entityTransform.size,
+                                    textureId,
+                                    entityTransform.rotation
+                                    );
         }
         // draw light
         ENGINE.addLight(playerTransform.position, 100.0f, {1.0f, 1.0f, 1.0f, 1.0f});
-
+        
         for (Entity colorId: entityRegistry.iterateEntities<SolidColorComponent, TransformComponent>())
         {
             TransformComponent& colorTransform = entityRegistry.getComponent<TransformComponent>(colorId);
             glm::vec4 color = entityRegistry.getComponent<SolidColorComponent>(colorId).color;
             ENGINE.drawColoredQuad(colorTransform.position, colorTransform.size, color, colorTransform.rotation);
         }
+        
+        const EntityComponent& playerEntity = entityRegistry.getComponent<EntityComponent>(playerEId);
+        f32 maxBarLength = 923.0f;
+        f32 healthBarLength = maxBarLength/200.0f*playerEntity.healthPoints;
+        
+        // Stats bars
+        glm::vec2 hudBarsPos = {0.0f,0.0f};
+        hudBarsPos = ENGINE.uiTexture(glm::vec2{20,-20}, glm::vec2{1218, 196}, AnchorPoint::NW, ID(STATS_UI));
+        ENGINE.drawQuadUI(glm::vec2{hudBarsPos.x + 72.0f - (maxBarLength - healthBarLength)/2, hudBarsPos.y + 64.0f}, glm::vec2{healthBarLength,22}, glm::vec4{0.9f,0.1f,0.3f,0.8f}, 0.0f);
+        ENGINE.drawQuadUI(glm::vec2{hudBarsPos.x + 72.0f, hudBarsPos.y + 0.0f}, glm::vec2{920,22}, glm::vec4{0.1f,0.9f,0.3f,0.8f}, 0.0f);
+        ENGINE.drawQuadUI(glm::vec2{hudBarsPos.x - 238.0f, hudBarsPos.y + -64.0f}, glm::vec2{305,22}, glm::vec4{0.4f,0.4f,0.9f,0.8f}, 0.0f);
+        
+        // Quick access items
+        glm::vec2 quickItemsSlotPos[8];
+        glm::vec2 hudItemHolderPos = ENGINE.uiTexture(glm::vec2{20, 50}, glm::vec2{45, 84}, AnchorPoint::SW, ID(ITEM_HOLDER_START));
+        u32 i=0;
+        for(i=0;i<3;i++)
+        {
+            quickItemsSlotPos[i] = glm::vec2{195.0f/2 + hudItemHolderPos.x + i*150, hudItemHolderPos.y};
+            ENGINE.drawUITex(quickItemsSlotPos[i], glm::vec2{150, 144}, ID(ITEM_HOLDER)); 
+        }
+        ENGINE.drawUITex(glm::vec2{45.0f + hudItemHolderPos.x + i*150, hudItemHolderPos.y}, glm::vec2{45, 84}, ID(ITEM_HOLDER_END));
+        
+        //items
+        ENGINE.drawUITex(quickItemsSlotPos[0], glm::vec2{120,120}, ID(HEALTH_POTION));
+        ENGINE.drawUITex(quickItemsSlotPos[1], glm::vec2{120,120}, ID(STAMINA_POTION));
+        ENGINE.drawUITex(quickItemsSlotPos[2], glm::vec2{120,120}, ID(MANA_POTION));
     }
-
+    
     void velocitySystem()
     {
         for (Entity vEid: entityRegistry.iterateEntities<VelocityComponent>())
@@ -861,21 +998,19 @@ class Game {
             t.position += v.vel * (f32)deltaTime;
         }
     }
-
+    
     void startGame()
     {
         initMap(MAP_SIZE_X, MAP_SIZE_Y);
         addPlayer(startPosition, ENTITY_TYPE_PLAYER, ELF_M_IDLE);
         updateFollowers();
-
+        
         glm::vec2 playerPos = entityRegistry.getComponent<TransformComponent>(playerEId).position;
-
-        addItem(playerPos + glm::vec2(-150, 0), ITEM_TYPE_WEAPON, WEAPON_SHIELD, SHIELD);
-
+        
         ENGINE.printGlobalAllocations(false);
         gameState = GAME_RUNNING;
     }
-
+    
     void moveProjectiles()
     {
         for (Entity projectileId: entityRegistry.iterateEntities<TransformComponent, ProjectileComponent>())
@@ -883,20 +1018,20 @@ class Game {
             TransformComponent& projectileSprite = entityRegistry.getComponent<TransformComponent>(projectileId);
             ProjectileComponent& projectile = entityRegistry.getComponent<ProjectileComponent>(projectileId);
             projectileSprite.position += projectile.direction * projectile.speed * (f32)deltaTime;
-
+            
             if (!isOnScreen(projectileSprite.position))
             {
                 entityRegistry.markEntityForDeletion(projectileId);
                 continue;
             }
-
+            
             for (Entity enemyId: entityRegistry.iterateEntities<ColliderComponent, TransformComponent, EntityComponent, TypeComponent>())
             {
                 TypeComponent& enemyCollider = entityRegistry.getComponent<TypeComponent>(enemyId);
                 if ((enemyCollider.entityType != ENTITY_TYPE_PLAYER && projectile.isEnemy) ||
                     (enemyCollider.entityType == ENTITY_TYPE_PLAYER && !projectile.isEnemy))
                     continue;
-
+                
                 TransformComponent& enemySprite = entityRegistry.getComponent<TransformComponent>(enemyId);
                 f32 distanceBetween = glm::distance(enemySprite.position, projectileSprite.position);
                 if (distanceBetween <= std::min(enemySprite.size.x, enemySprite.size.y) / 2)
@@ -906,7 +1041,7 @@ class Game {
                     // subtract shooter's attack from enemy's health
                     EntityComponent& entityStats = entityRegistry.getComponent<EntityComponent>(enemyId);
                     entityStats.healthPoints -= projectile.damage;
-
+                    
                     if (entityStats.healthPoints <= 0.0f)
                     {
                         if (enemyId == playerEId)
@@ -917,7 +1052,7 @@ class Game {
                         // DO NOT MOVE THIS LINE, PLAYER SHOULDN'T BE MARKED FOR DELETION
                         entityRegistry.markEntityForDeletion(enemyId);
                     }
-
+                    
                     //Emit Particles
                     ENGINE.emitParticles(20,
                                          enemySprite.position,
@@ -934,40 +1069,42 @@ class Game {
                 }
             }
         }
+        entityRegistry.removeMarkedEntities();
+        
     }
-
+    
     glm::vec2 getCameraUnits() const
     {
         return ENGINE.getScreenSize() / camera.z;
     }
-
+    
     glm::vec2 getCameraLeftTopCorner() const
     {
         return {camera.x - getCameraUnits().x / 2.0f, camera.y + getCameraUnits().y / 2.0f};
     }
-
+    
     glm::vec2 getCameraRightTopCorner() const
     {
         return {camera.x + getCameraUnits().x / 2.0f, camera.y + getCameraUnits().y / 2.0f};
     }
-
+    
     glm::vec2 getCameraLeftBottomCorner() const
     {
         return {camera.x - getCameraUnits().x / 2.0f, camera.y - getCameraUnits().y / 2.0f};
     }
-
+    
     glm::vec2 getCameraRightBottomCorner() const
     {
         return {camera.x + getCameraUnits().x / 2.0f, camera.y - getCameraUnits().y / 2.0f};
     }
-
+    
     bool isOnScreen(glm::vec2 pos) const {
         glm::vec2 leftBottomCorner = getCameraLeftBottomCorner();
         glm::vec2 rightTopCorner = getCameraRightTopCorner();
         return pos.x >= leftBottomCorner.x && pos.x <= rightTopCorner.x &&
             pos.y >= leftBottomCorner.y && pos.y <= rightTopCorner.y;
     }
-
+    
     void playerToggleVroom()
     {
         EntityComponent& player = entityRegistry.getComponent<EntityComponent>(playerEId);
@@ -977,18 +1114,18 @@ class Game {
         else
             player.movementSpeed = DEFAULT_PLAYER_SPEED;
     }
-
+    
     glm::uvec2 getTileByPosition(glm::vec2 position) const
     {
         // we substract map.quadSize / 2 because we draw map.tiles from the center
         return (glm::uvec2)(position / map.quadSize);
     }
-
+    
     glm::vec2 getPlayerSpritePosition() const
     {
         return entityRegistry.getComponent<TransformComponent>(playerEId).position;
     }
-
+    
     // position used for collisions
     glm::vec2 getPlayerBasePosition() const
     {
@@ -996,29 +1133,29 @@ class Game {
         glm::vec2 spritePos = getPlayerSpritePosition();
         return {spritePos.x, spritePos.y - (HIT_BOXES[ENTITY_TYPE_PLAYER].y - HIT_BOXES[ENTITY_TYPE_PLAYER].x) / 2};
     }
-
+    
     // position used for collisions
     glm::vec2 getBasePosition(glm::vec2 spritePos, EntityType type) const
     {
         assert(HIT_BOXES[type].x <= HIT_BOXES[type].y && "Ratia texturii (x/y) este prea mare");
         return {spritePos.x, spritePos.y - (HIT_BOXES[type].y - HIT_BOXES[type].x) / 2.0f};
     }
-
+    
     glm::vec2 playerBaseToSpritePosition(glm::vec2 basePosition) const
     {
         return {basePosition.x, basePosition.y + (HIT_BOXES[ENTITY_TYPE_PLAYER].y - HIT_BOXES[ENTITY_TYPE_PLAYER].x) / 2.0f};
     }
-
+    
     glm::vec2 baseToSpritePosition(glm::vec2 basePosition, EntityType type) const
     {
         return {basePosition.x, basePosition.y + (HIT_BOXES[type].y - HIT_BOXES[type].x) / 2.0f};
     }
-
+    
     f32 calcRadiusOfEntity(EntityType type)
     {
         return HIT_BOXES[type].x / 2.0f;
     }
-
+    
     void resolveCollision(glm::vec2 oldPos, glm::vec2& pos, u32 radius)
     {
         glm::uvec2 tile = getTileByPosition(pos);
@@ -1055,20 +1192,20 @@ class Game {
             }
         }
     }
-
+    
     glm::vec2 Game::resolveBasePositionCollision(glm::vec2 oldPosition, glm::vec2 position, EntityType type)
     {
         glm::vec2 basePos = getBasePosition(position, type);
         resolveCollision(getBasePosition(oldPosition, type), basePos, calcRadiusOfEntity(type));
         return baseToSpritePosition(basePos, type);
     }
-
+    
     bool checkFillTile(bool* mat, u32 tileIndex) const
     {
         // return !mat[tileIndex] && map.tiles[tileIndex] >= ID(WALL) && map.tiles[tileIndex] <= ID(WALL_CORNER_TOP_RIGHT);
         return map.tiles[tileIndex] >= TextureTag::WALL && map.tiles[tileIndex] <= TextureTag::WALL_CORNER_TOP_RIGHT;
     }
-
+    
     bool fillUtilX(bool* mat, i32 tileX, i32 tileY)
     {
         assert(tileX >= 0 && tileX < map.size.x &&
@@ -1098,7 +1235,7 @@ class Game {
         }
         return ok;
     }
-
+    
     bool fillUtilY(bool* mat, i32 tileX, i32 tileY)
     {
         assert(tileX >= 0 && tileX < map.size.x &&
@@ -1128,7 +1265,7 @@ class Game {
         }
         return ok;
     }
-
+    
     void fill()
     {
         bool* mat = (bool*)ENGINE.globalAlloc(sizeof(bool) * map.size.x * map.size.y);
@@ -1152,7 +1289,7 @@ class Game {
         }
         ENGINE.globalFree(mat);
     }
-
+    
     void initMap(const u32 sizeX, const u32 sizeY)
     {
         map.size.x = sizeX;
@@ -1168,17 +1305,17 @@ class Game {
         generateMapLevel();
         fill();
     }
-
+    
     glm::vec2 getCenterPositionByTile(glm::uvec2 tile) const
     {
         return glm::vec2((f32)tile.x, (f32)tile.y) * map.quadSize + map.quadSize / 2.0f;
     }
-
+    
     glm::vec2 getLeftBottomCornerByTile(glm::uvec2 tile) const
     {
         return glm::vec2((f32)tile.x, (f32)tile.y) * map.quadSize;
     }
-
+    
     void renderMap() const
     {
         for (u32 i = 0; i < map.tilesArrSize; ++i)
@@ -1194,52 +1331,57 @@ class Game {
         {
             glm::vec2 center = (map.walls[i].leftBottom + map.walls[i].topRight) / 2.0f;
             glm::vec2 size = map.walls[i].topRight - map.walls[i].leftBottom;
-
+            
             // logDebug("C: (%f, %f), S: (%f, %f)", center.x, center.y, size.x, size.y);
             ENGINE.addLightBlocker(center, size);
             // ENGINE.drawTexturedQuad(center, size, ID(DEBUG_OVERLAY), 0);
         }
         
     }
-
+    
     glm::vec2 getQuadSize() const
     {
         return map.quadSize;
     }
-
+    
+    TextureTag randomFloor(u64& seed)
+    {
+        return (TextureTag)(TAG(FLOOR_1) + ENGINE.randomRangeU64(seed, 0, 2));
+    }
+    
     void generateMapLevel()
     {
         assert(map.size.x >= ROOM.MAX.x && map.size.y >= ROOM.MAX.y);
         u64 seed = std::random_device()();
-
+        
         if (ROOM.MIN.x % 2)
         {
             ROOM.MIN.x += 1;
         }
-
+        
         if (ROOM.MAX.x % 2)
         {
             ROOM.MAX.x += 1;
         }
-
+        
         if (ROOM.MIN.y % 2)
         {
             ROOM.MIN.y -= 1;
         }
-
+        
         if (ROOM.MAX.y % 2)
         {
             ROOM.MAX.y -= 1;
         }
-
+        
         assert(ROOM.MIN.x <= ROOM.MAX.x && ROOM.MIN.y <= ROOM.MAX.y);
-
+        
         // transform to constexpr
         const glm::uvec2 ROOM_AVERAGE{
             (ROOM.MIN.x + ROOM.MAX.x) / 2,
             (ROOM.MIN.y + ROOM.MAX.y) / 2
         };
-
+        
         u32 leftVerticalAxis = 1;
         u32 rightVerticalAxis = map.size.x - 1;
         map.roomCount = 0;
@@ -1247,7 +1389,7 @@ class Game {
         {
             u32 height = (u32)ENGINE.randomRangeU64(seed, ROOM.MIN.y, ROOM.MAX.y) & (~1u);
             u32 width = (u32)ENGINE.randomRangeU64(seed, ROOM.MIN.x, ROOM.MAX.x) & (~1u);
-
+            
             if (leftVerticalAxis + width > rightVerticalAxis)
             {
                 // // right
@@ -1263,7 +1405,7 @@ class Game {
             {
                 for (u32 j = 1; j + 1 < width; ++j)
                 {
-                    map.tiles[leftVerticalAxis + (yPos + i) * map.size.x + j] = TextureTag::FLOOR_1;
+                    map.tiles[leftVerticalAxis + (yPos + i) * map.size.x + j] = randomFloor(seed);
                 }
             }
             glm::uvec2 tileLeftBottom{ leftVerticalAxis + 1, yPos + 1 };
@@ -1273,24 +1415,24 @@ class Game {
             map.rooms[map.roomCount].center = (cornerLeftBottom + cornerRightTop) / 2.0f;
             map.rooms[map.roomCount].size = cornerRightTop - cornerLeftBottom;
             // WALLS
-            map.tiles[leftVerticalAxis + yPos * map.size.x] =  TextureTag::WALL_CORNER_BOTTOM_LEFT;
-            map.tiles[leftVerticalAxis + yPos * map.size.x + width - 1] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
-            map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x] = TextureTag::WALL_CORNER_TOP_LEFT;
-            map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x + width - 1] = TextureTag::WALL_CORNER_TOP_RIGHT;
-
-
+            map.tiles[leftVerticalAxis + yPos * map.size.x] =  TextureTag::WALL_LEFT;
+            map.tiles[leftVerticalAxis + yPos * map.size.x + width - 1] = TextureTag::WALL_LEFT;
+            map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x] = TextureTag::WALL_LEFT;
+            map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x + width - 1] = TextureTag::WALL_LEFT;
+            
+            
             for (u32 i = 1; i + 1 < height; ++i)
             {
                 map.tiles[leftVerticalAxis + (yPos + i) * map.size.x] = TextureTag::WALL_LEFT;
-                map.tiles[leftVerticalAxis + (yPos + i) * map.size.x + width - 1] = TextureTag::WALL_RIGHT;
+                map.tiles[leftVerticalAxis + (yPos + i) * map.size.x + width - 1] = TextureTag::WALL_LEFT;
             }
-
+            
             for (u32 j = 1; j + 1 < width; ++j)
             {
-                map.tiles[leftVerticalAxis + yPos * map.size.x + j] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
-                map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x + j] = TextureTag::WALL_TOP_MID;
+                map.tiles[leftVerticalAxis + yPos * map.size.x + j] = TextureTag::WALL_LEFT;
+                map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x + j] = TextureTag::WALL_LEFT;
             }
-
+            
             // logDebug("Tile: (%u, %u)", leftVerticalAxis + 2, yPos + 2);
             // logDebug("Tile: (%u, %u)", leftVerticalAxis + width - 3, yPos + 2);
             // logDebug("Tile: (%u, %u)", leftVerticalAxis + 2, yPos + height - 3);
@@ -1299,12 +1441,12 @@ class Game {
             //         getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 2, yPos + 2}),
             //         ENEMIES_STATS[ZOMBIE].tag));
             // logDebug("");
-
+            
             const u32 prevRoomRight = roomRight;
             roomRight = leftVerticalAxis + width - 1;
             prevLeftVerticalAxis = leftVerticalAxis;
             leftVerticalAxis += width + (u32)ENGINE.randomRangeU64(seed, ROOM.MIN.x / 2, std::max(ROOM.MIN.x, ROOM.MAX.x / 2)) & (~1u);
-
+            
             if (map.roomCount != 0)
             {
                 // MIDDLE TUNNEL
@@ -1312,28 +1454,29 @@ class Game {
                 u32 stopY = yPos + height / 2;
                 if (startY >= stopY)
                     std::swap(startY, stopY);
-
+                
                 startY -= 2;
                 stopY += 1;
-
+                
                 u32 baseX = (prevRoomRight + prevLeftVerticalAxis) / 2 + 1;
-
-                map.tiles[startY * map.size.x + baseX - 2] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
-                map.tiles[startY * map.size.x + baseX - 1] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
-                map.tiles[startY * map.size.x + baseX]     = TextureTag::WALL_CORNER_BOTTOM_LEFT;
-                map.tiles[startY * map.size.x + baseX + 1] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
+                
+                map.tiles[startY * map.size.x + baseX - 2] = TextureTag::WALL_LEFT;
+                map.tiles[startY * map.size.x + baseX - 1] = TextureTag::WALL_LEFT;
+                map.tiles[startY * map.size.x + baseX]     = TextureTag::WALL_LEFT;
+                map.tiles[startY * map.size.x + baseX + 1] = TextureTag::WALL_LEFT;
                 for (u32 i = startY + 1; i < stopY; ++i)
                 {
                     map.tiles[i * map.size.x + baseX - 2] = TextureTag::WALL_LEFT;
-                    map.tiles[i * map.size.x + baseX - 1] = TextureTag::FLOOR_1;
-                    map.tiles[i * map.size.x + baseX]     = TextureTag::FLOOR_1;
-                    map.tiles[i * map.size.x + baseX + 1] = TextureTag::WALL_RIGHT;
+                    map.tiles[i * map.size.x + baseX - 1] = randomFloor(seed);
+                    map.tiles[i * map.size.x + baseX]     = randomFloor(seed);
+                    map.tiles[i * map.size.x + baseX + 1] = TextureTag::WALL_LEFT;
                 }
-                map.tiles[stopY * map.size.x + baseX - 2] = TextureTag::WALL_CORNER_TOP_LEFT;
-                map.tiles[stopY * map.size.x + baseX - 1] = TextureTag::WALL_TOP_MID;
-                map.tiles[stopY * map.size.x + baseX]     = TextureTag::WALL_TOP_MID;
-                map.tiles[stopY * map.size.x + baseX + 1] = TextureTag::WALL_CORNER_TOP_RIGHT;
-
+                
+                map.tiles[stopY * map.size.x + baseX - 2] = TextureTag::WALL_LEFT;
+                map.tiles[stopY * map.size.x + baseX - 1] = TextureTag::WALL_LEFT;
+                map.tiles[stopY * map.size.x + baseX]     = TextureTag::WALL_LEFT;
+                map.tiles[stopY * map.size.x + baseX + 1] = TextureTag::WALL_LEFT;
+                
                 // LEFT TUNNEL
                 u32 startX = prevRoomRight;
                 u32 stopX = (prevRoomRight + prevLeftVerticalAxis) / 2 - 1;
@@ -1346,23 +1489,23 @@ class Game {
                 map.rooms[map.roomCount - 1].entranceRightBottom = getCenterPositionByTile({tileLeftBottomEntrance.y, tileLeftBottomEntrance.x});
                 map.rooms[map.roomCount - 1].entranceRightTop = getCenterPositionByTile({tileLeftTopEntrance.y - 1, tileLeftTopEntrance.x - 1});
                 
-                map.tiles[(baseY - 2) * map.size.x + startX] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
+                map.tiles[(baseY - 2) * map.size.x + startX] = TextureTag::WALL_LEFT;
                 //map.walls[map.numberOfWalls++] = getLeftBottomCornerByTile({startX, baseY - 2});
-                map.tiles[(baseY - 1) * map.size.x + startX] = TextureTag::FLOOR_1;
-                map.tiles[ baseY      * map.size.x + startX] = TextureTag::FLOOR_1;
-                map.tiles[(baseY + 1) * map.size.x + startX] = TextureTag::WALL_CORNER_TOP_RIGHT;
+                map.tiles[(baseY - 1) * map.size.x + startX] = randomFloor(seed);
+                map.tiles[ baseY      * map.size.x + startX] = randomFloor(seed);
+                map.tiles[(baseY + 1) * map.size.x + startX] = TextureTag::WALL_LEFT;
                 // left tunnel
                 for (u32 i = startX + 1; i < stopX; ++i)
                 {
-                    map.tiles[(baseY - 2) * map.size.x + i] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
-                    map.tiles[(baseY - 1) * map.size.x + i] = TextureTag::FLOOR_1;
-                    map.tiles[ baseY      * map.size.x + i] = TextureTag::FLOOR_1;
-                    map.tiles[(baseY + 1) * map.size.x + i] = TextureTag::WALL_TOP_MID;
+                    map.tiles[(baseY - 2) * map.size.x + i] = TextureTag::WALL_LEFT;
+                    map.tiles[(baseY - 1) * map.size.x + i] = randomFloor(seed);
+                    map.tiles[ baseY      * map.size.x + i] = randomFloor(seed);
+                    map.tiles[(baseY + 1) * map.size.x + i] = TextureTag::WALL_LEFT;
                 }
                 // end of left tunnel
-                map.tiles[(baseY - 1) * map.size.x + stopX] = TextureTag::FLOOR_1;
-                map.tiles[ baseY      * map.size.x + stopX] = TextureTag::FLOOR_1;
-
+                map.tiles[(baseY - 1) * map.size.x + stopX] = randomFloor(seed);
+                map.tiles[ baseY      * map.size.x + stopX] = randomFloor(seed);
+                
                 // RIGHT TUNNEL
                 baseY = yPos + height / 2;
                 startX = (prevRoomRight + prevLeftVerticalAxis) / 2 + 3;
@@ -1373,22 +1516,22 @@ class Game {
                 // right end of tunnel, left entrance of current room
                 map.rooms[map.roomCount].entranceLeftBottom = getCenterPositionByTile({tileRightBottomEntrance.y, tileRightBottomEntrance.x});
                 map.rooms[map.roomCount].entranceLeftTop = getCenterPositionByTile({tileRightTopEntrance.y - 1, tileRightTopEntrance.x - 1});
-
-                map.tiles[(baseY - 2) * map.size.x + stopX] = TextureTag::WALL_CORNER_BOTTOM_RIGHT;
-                map.tiles[(baseY - 1) * map.size.x + stopX] = TextureTag::FLOOR_1;
-                map.tiles[ baseY      * map.size.x + stopX] = TextureTag::FLOOR_1;
-                map.tiles[(baseY + 1) * map.size.x + stopX] = TextureTag::WALL_CORNER_TOP_RIGHT;
+                
+                map.tiles[(baseY - 2) * map.size.x + stopX] = TextureTag::WALL_LEFT;
+                map.tiles[(baseY - 1) * map.size.x + stopX] = randomFloor(seed);
+                map.tiles[ baseY      * map.size.x + stopX] = randomFloor(seed);
+                map.tiles[(baseY + 1) * map.size.x + stopX] = TextureTag::WALL_LEFT;
                 // right tunnel
                 for (u32 i = startX; i < stopX; ++i)
                 {
-                    map.tiles[(baseY - 2) * map.size.x + i] = TextureTag::WALL_CORNER_BOTTOM_LEFT;
-                    map.tiles[(baseY - 1) * map.size.x + i] = TextureTag::FLOOR_1;
-                    map.tiles[ baseY      * map.size.x + i] = TextureTag::FLOOR_1;
-                    map.tiles[(baseY + 1) * map.size.x + i] = TextureTag::WALL_TOP_MID;
+                    map.tiles[(baseY - 2) * map.size.x + i] = TextureTag::WALL_LEFT;
+                    map.tiles[(baseY - 1) * map.size.x + i] = randomFloor(seed);
+                    map.tiles[ baseY      * map.size.x + i] = randomFloor(seed);
+                    map.tiles[(baseY + 1) * map.size.x + i] = TextureTag::WALL_LEFT;
                 }
                 // end of right tunnel
-                map.tiles[(baseY - 1) * map.size.x + startX - 1] = TextureTag::FLOOR_1;
-                map.tiles[ baseY      * map.size.x + startX - 1] = TextureTag::FLOOR_1;
+                map.tiles[(baseY - 1) * map.size.x + startX - 1] = randomFloor(seed);
+                map.tiles[ baseY      * map.size.x + startX - 1] = randomFloor(seed);
             }
             else
             {
@@ -1396,12 +1539,12 @@ class Game {
                 cornerLeftBottom *= map.quadSize;
                 startPosition = playerBaseToSpritePosition(cornerLeftBottom + map.quadSize * glm::vec2{(f32)width / 2.0f, (f32)height / 2.0f});
             }
-
+            
             prevWidth = width;
             prevHeight = height;
             prevYPos = yPos;
         }
-
+        
         map.tilesArrSize = 0;
         for (u32 i = 0; i < map.size.y; ++i)
         {
@@ -1424,7 +1567,7 @@ class Game {
             }
         }
     }
-
+    
     bool menuButton(glm::vec2 pos, const char* text)
     {
         buttonSize = {
@@ -1440,7 +1583,7 @@ class Game {
                                         text) &&
             actionState.menuInteract == KeyState::PRESS;
     }
-
+    
     void linkAnimationByTag(AnimationTag tag)
     {
         TextureId* resultedArr = nullptr;
@@ -1451,91 +1594,91 @@ class Game {
             {
                 CREATE_ANIMATION_ARRAY(ELF_M_HIT);
             }
-
+            
             case ELF_M_IDLE:
             {
                 CREATE_ANIMATION_ARRAY(ELF_M_IDLE);
             }
-
+            
             case ELF_M_RUN:
             {
                 CREATE_ANIMATION_ARRAY(ELF_M_RUN);
             }
-
+            
             case ELF_F_HIT:
             {
                 CREATE_ANIMATION_ARRAY(ELF_F_HIT);
             }
-
+            
             case ELF_F_IDLE:
-                CREATE_ANIMATION_ARRAY(ELF_F_IDLE);
-
+            CREATE_ANIMATION_ARRAY(ELF_F_IDLE);
+            
             case ELF_F_RUN:
             {
                 CREATE_ANIMATION_ARRAY(ELF_F_RUN);
             }
-
+            
             case BIG_DEMON_IDLE:
             {
                 CREATE_ANIMATION_ARRAY(BIG_DEMON_IDLE);
             }
-
+            
             case BIG_DEMON_RUN:
             {
                 CREATE_ANIMATION_ARRAY(BIG_DEMON_RUN);
             }
-
+            
             case BIG_ZOMBIE_HIT:
             {
                 CREATE_ANIMATION_ARRAY(BIG_ZOMBIE_HIT);
             }
-
+            
             case BIG_ZOMBIE_IDLE:
             {
                 CREATE_ANIMATION_ARRAY(BIG_ZOMBIE_IDLE);
             }
-
+            
             case BIG_ZOMBIE_RUN:
             {
                 CREATE_ANIMATION_ARRAY(BIG_ZOMBIE_RUN);
             }
-
+            
             case CHEST_EMPTY_OPEN:
             {
                 CREATE_ANIMATION_ARRAY(CHEST_EMPTY_OPEN);
             }
-
+            
             case CHEST_FULL_OPEN:
             {
                 CREATE_ANIMATION_ARRAY(CHEST_FULL_OPEN);
             }
-
+            
             case CHEST_MIMIC_OPEN:
             {
                 CREATE_ANIMATION_ARRAY(CHEST_MIMIC_OPEN);
             }
-
+            
             case SWORD:
             {
                 CREATE_ANIMATION_ARRAY(SWORD);
             }
-
+            
             case SHIELD:
             {
                 CREATE_ANIMATION_ARRAY(SHIELD);
             }
-
+            
             case KNIFE:
             {
                 CREATE_ANIMATION_ARRAY(KNIFE);
             }
-
+            
             case FORK:
             {
                 CREATE_ANIMATION_ARRAY(FORK);
             }
         }
-
+        
         ENGINE.createAnimation(tag, resultedArr, frameCount, ANIMATION_DURATION[tag] * ANIMATIONS_MULTIPLIER);
     }
 };
