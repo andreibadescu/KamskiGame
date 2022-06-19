@@ -180,5 +180,16 @@ void Game::gameRender()
     }
     renderCursor();
     ENGINE.endBatch();
+    
+    for(u32 i = 0; i != map.navMesh.polygonCount; i++)
+    {
+        ENGINE.beginTriangleFan(camera);
+        for(u32 vInd = 0; vInd != map.navMesh.polygons[i].vertexCount; vInd++)
+        {
+            ENGINE.addFanVertex(map.navMesh.polygons[i].vertices[vInd]);
+        }
+        ENGINE.endTriangleFan();
+    }
+    
     ENGINE.swapClear();
 }

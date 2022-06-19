@@ -1,15 +1,16 @@
 #include "headers/Defines.h"
 #include "headers/Components.h"
 #include <random>
-#include <fstream>
 
 class Game {
     public:
+    
     struct Polygon
     {
         glm::vec2* vertices;
         u32 vertexCount;
     };
+    
     struct Map {
         TextureTag* tiles;
         // refactor this tilesArr to be cache friendly by also storing the texture id
