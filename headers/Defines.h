@@ -17,7 +17,7 @@ inline struct {
     glm::uvec2 MIN{20, 20};
     glm::uvec2 MAX{30, 30};
 } ROOM;
-inline constexpr u32 MAX_WALLS = MAP_SIZE / 20 * 7;
+inline constexpr u32 MAX_WALLS = 100000;
 #ifdef KAMSKI_DEBUG
 inline constexpr f32 DEFAULT_CAMERA_ZOOM = 3.0f;
 #else
@@ -74,7 +74,8 @@ enum class TextureTag: u32
     WEAPON_END = KNIFE_FINAL,
 
     /* MAP TILES, RATIO ALWAYS 1:1 SO ADD THEM ONLY AFTER THIS COMMENT */
-    FLOOR_1,
+    FLOOR_START,
+    FLOOR_1 = FLOOR_START,
     FLOOR_2,
     FLOOR_3,
     FLOOR_4,
@@ -84,10 +85,12 @@ enum class TextureTag: u32
     FLOOR_8,
     FLOOR_HOLE,
     FLOOR_LADDER,
+    FLOOR_END = FLOOR_LADDER,
 
     COLLISION_START,
+    WALL_START = COLLISION_START,
     // WALL
-    WALL = COLLISION_START,
+    WALL = WALL_START,
 
     WALL_BANNER_BLUE,
     WALL_BANNER_GREEN,
@@ -128,10 +131,9 @@ enum class TextureTag: u32
     WALL_INNER_CORNER_MID_RIGHT,
     WALL_INNER_CORNER_T_TOP_LEFT,
     WALL_INNER_CORNER_T_TOP_RIGHT,
-    COLLISION_END = WALL_INNER_CORNER_T_TOP_RIGHT,
-    
-    
-    
+    WALL_END = WALL_INNER_CORNER_T_TOP_RIGHT,
+    COLLISION_END = WALL_END,
+
     // animations
     // ELF_M
     ELF_M_HIT_0,
@@ -383,6 +385,7 @@ enum States {
     GAME_LOST
 };
 
+// #define PROCEDURAL_MAP_GENERATION
 #define KASMKI_MAX_ENTITY_COUNT 20000
 #define KAMSKI_COMPONENTS TransformComponent, TypeComponent, ColliderComponent, SpriteComponent, SolidColorComponent, FollowComponent, EntityComponent, ProjectileComponent, HealthBarComponent, ItemComponent, VelocityComponent, EnemyComponent
 #define ID(TAG) getTextureIdByTag(TextureTag::TAG)

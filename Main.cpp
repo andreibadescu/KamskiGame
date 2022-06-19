@@ -92,7 +92,7 @@ void Game::gameUpdate()
         break;
         
         [[unlikely]]
-            case GAME_START:
+        case GAME_START:
         {
             ENGINE.setBlurWholeScreen(false);
             memset((char*)this + offsetof(Game, disposableMemory),

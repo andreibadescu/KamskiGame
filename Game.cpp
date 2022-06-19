@@ -1,9 +1,15 @@
 #include "headers/Defines.h"
 #include "headers/Components.h"
 #include <random>
+#include <fstream>
 
 class Game {
     public:
+    struct Polygon
+    {
+        glm::vec2* vertices;
+        u32 vertexCount;
+    };
     struct Map {
         TextureTag* tiles;
         // refactor this tilesArr to be cache friendly by also storing the texture id
@@ -30,6 +36,11 @@ class Game {
             glm::vec2 entranceRightTop;
         } rooms[100];
         u32 roomCount;
+        struct NavigationMesh
+        {
+            Polygon* polygons;
+            u32 polygonCount;
+        } navMesh;
     };
     
     u32 itemId;
@@ -89,6 +100,7 @@ class Game {
             
             glm::vec2 cursorPosition;
             Map map;
+            u64 seed;
         };
         char disposableMemory[];
     };
@@ -144,7 +156,8 @@ class Game {
             EntityComponent& ent = entityRegistry.getComponent<EntityComponent>(playerEId);
             ent.attackPoints = 0.1f;
             itemSet.weapons &= ~BIT(WEAPON_SWORD);
-        } else
+        }
+        else
         {
             
             AnimationTag tag;
@@ -224,9 +237,9 @@ class Game {
                 
                 combatPhase = COMBAT_PHASE_OFF;
             }
-        } else
+        }
+        else
         {
-            
             TransformComponent& tr = entityRegistry.getComponent<TransformComponent>(playerEId);
             ColliderComponent& col = entityRegistry.getComponent<ColliderComponent>(playerEId);
             
@@ -273,7 +286,6 @@ class Game {
             case MENU_PHASE_ZOOM:
             {
                 f32 zoom = (5.0f - (4.0f - menuTime)) / 5.0f;
-                logDebug("zoom = %f", zoom);                
                 ENGINE.drawTexturedQuad({}, 
                                         ENGINE.getScreenSize() * zoom, 
                                         getTextureIdByTag(tags[menuTagIndex]), 
@@ -309,9 +321,7 @@ class Game {
                     menuTagIndex = (menuTagIndex + 1) % ARRAY_COUNT(tags);
                 }
             }break;
-            
         }
-        
     }
     
     void linkTextureIdByTag(TextureId id, TextureTag tag)
@@ -1001,6 +1011,7 @@ class Game {
     
     void startGame()
     {
+        seed = std::random_device()();
         initMap(MAP_SIZE_X, MAP_SIZE_Y);
         addPlayer(startPosition, ENTITY_TYPE_PLAYER, ELF_M_IDLE);
         updateFollowers();
@@ -1277,8 +1288,11 @@ class Game {
                 i32 tileIndex = i * map.size.x + j;
                 if (!mat[tileIndex] && checkFillTile(mat, tileIndex)) {
                     mat[tileIndex] = true;
+                    glm::uvec2* idkTile =  map.tilesArr;
                     if (!fillUtilX(mat, j, i) && !fillUtilY(mat, j, i))
                     {
+                        u32 idk2 = map.numberOfWalls;
+                        TextureTag idkTag =  map.tiles[tileIndex];
                         map.walls[map.numberOfWalls++] = {
                             getLeftBottomCornerByTile({j, i}),
                             getLeftBottomCornerByTile({j + 1, i + 1})
@@ -1302,8 +1316,136 @@ class Game {
             map.tiles[i] = TextureTag::NONE;
         }
         map.quadSize = {QUAD_SIZE, QUAD_SIZE};
+#ifdef PROCEDURAL_MAP_GENERATION
         generateMapLevel();
+#else
+        loadMapFromFile();
+#endif
         fill();
+        glm::vec2* vertexArr;
+        u32 vertexArrSize;
+        createPolygonOfWalkableSurface(vertexArr, vertexArrSize);
+        // logInfo("vertexArrSize: %u", vertexArrSize);
+        for (u32 i = 0; i < vertexArrSize; ++i)
+        {
+            glm::uvec2 tile = getTileByPosition(vertexArr[i]);
+            map.tiles[tile.y * map.size.x + tile.x] = TextureTag::FLOOR_HOLE;
+            // logInfo("(%u,%u)", tile.x, tile.y);
+        }
+        triangulatePolygon(vertexArr, vertexArrSize);
+    }
+
+    f32 sign(glm::vec2 p1, glm::vec2 p2, glm::vec2 p3)
+    {
+        return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+    }
+
+    bool isPointInsideTriangle(glm::vec2 pt, glm::vec2 v1, glm::vec2 v2, glm::vec2 v3)
+    {
+        f32 d1 = sign(pt, v1, v2);
+        f32 d2 = sign(pt, v2, v3);
+        f32 d3 = sign(pt, v3, v1);
+
+        bool has_neg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+        bool has_pos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+
+        return !(has_neg && has_pos);
+    }
+
+    bool isAngleReflexive(glm::vec2 a, glm::vec2 b, glm::vec2 c)
+    {
+        f32 val = (b.y - a.y) * (c.x - b.x) -
+                  (b.x - a.x) * (c.y - b.y);
+        assert(val != 0.0f);
+        return val > 0.0f;
+    }
+
+    bool isPointInsidePolygon(glm::vec2 point, Polygon poly)
+    {
+        glm::vec2& a = poly.vertices[0];
+        for (u32 i = 1; i + 1 < poly.vertexCount; ++i)
+        {
+            glm::vec2& b = poly.vertices[i];
+            glm::vec2& c = poly.vertices[i + 1];
+            if (isPointInsideTriangle(point, a, b, c))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void triangulatePolygon(glm::vec2* vertexArr, u32 vertexArrSize)
+    {
+        u32 polygonCount = 0;
+        Polygon* polygons = (Polygon*)ENGINE.temporaryAlloc(10000 * sizeof(Polygon));
+        for (u32 i = 0; i < vertexArrSize; ++i)
+        {
+            u32 prevInd = (vertexArrSize + i - 1) % vertexArrSize;
+            u32 nextInd = (i + 1) % vertexArrSize;
+
+            glm::vec2& a = vertexArr[prevInd];
+            glm::vec2& b = vertexArr[i];
+            glm::vec2& c = vertexArr[nextInd];
+
+            glm::uvec2 tile = getTileByPosition(b);
+            logDebug("%u: (%u,%u)", i, tile.x, tile.y);
+
+            if (isAngleReflexive(a, b, c))
+            {
+                glm::vec2* vertices = (glm::vec2*)ENGINE.globalAlloc(3 * sizeof(glm::vec2));
+                vertices[0] = a;
+                vertices[1] = b;
+                vertices[2] = c;
+                Polygon poly{vertices, 3};
+                bool ok = true;
+                for (u32 j = 0; j + 1 < i; ++j)
+                {
+                    if (isPointInsidePolygon(vertexArr[j], poly))
+                    {
+                        ok = false;
+                    }
+                }
+                for (u32 j = i + 2; j < vertexArrSize; ++j)
+                {
+                    if (isPointInsidePolygon(vertexArr[j], poly))
+                    {
+                        ok = false;
+                    }
+                }
+                if (ok)
+                {
+                    polygons[polygonCount++] = poly;
+                }
+                logInfo("Reflexiv: True!");
+            }
+            else
+            {
+                logInfo("Reflexiv: False");
+            }
+        }
+        map.navMesh.polygons = (Polygon*)ENGINE.globalAlloc(polygonCount * sizeof(Polygon));
+        map.navMesh.polygonCount = polygonCount;
+        memcpy(map.navMesh.polygons, polygons, polygonCount * sizeof(Polygon));
+        logInfo("Triangles:");
+        for (u32 i = 0; i < map.navMesh.polygonCount; ++i)
+        {
+            Polygon& poly = map.navMesh.polygons[i];
+            glm::uvec2 tile[3];
+            assert(poly.vertexCount == 3);
+            for (u32 j = 0; j < poly.vertexCount; ++j)
+            {
+                tile[j] = getTileByPosition(poly.vertices[j]);
+            }
+            logInfo("{(%u,%u), (%u,%u), (%u,%u)}",
+                tile[0].x,
+                tile[0].y,
+                tile[1].x,
+                tile[1].y,
+                tile[2].x,
+                tile[2].y
+            );
+        }
     }
     
     glm::vec2 getCenterPositionByTile(glm::uvec2 tile) const
@@ -1318,6 +1460,7 @@ class Game {
     
     void renderMap() const
     {
+        u32 idk = map.tilesArrSize;
         for (u32 i = 0; i < map.tilesArrSize; ++i)
         {
             glm::uvec2* t = &map.tilesArr[i];
@@ -1326,13 +1469,11 @@ class Game {
             u32 tileIndex = tile.y * map.size.x + tile.x;
             ENGINE.drawTexturedQuad(position, map.quadSize, getTextureIdByTag(map.tiles[tileIndex]), 0);
         }
-        // logDebug("Nr: %d", map.numberOfWalls);
         for (u32 i = 0; i < map.numberOfWalls; ++i)
         {
             glm::vec2 center = (map.walls[i].leftBottom + map.walls[i].topRight) / 2.0f;
             glm::vec2 size = map.walls[i].topRight - map.walls[i].leftBottom;
             
-            // logDebug("C: (%f, %f), S: (%f, %f)", center.x, center.y, size.x, size.y);
             ENGINE.addLightBlocker(center, size);
             // ENGINE.drawTexturedQuad(center, size, ID(DEBUG_OVERLAY), 0);
         }
@@ -1352,7 +1493,6 @@ class Game {
     void generateMapLevel()
     {
         assert(map.size.x >= ROOM.MAX.x && map.size.y >= ROOM.MAX.y);
-        u64 seed = std::random_device()();
         
         if (ROOM.MIN.x % 2)
         {
@@ -1433,15 +1573,6 @@ class Game {
                 map.tiles[leftVerticalAxis + (yPos + height - 1) * map.size.x + j] = TextureTag::WALL_LEFT;
             }
             
-            // logDebug("Tile: (%u, %u)", leftVerticalAxis + 2, yPos + 2);
-            // logDebug("Tile: (%u, %u)", leftVerticalAxis + width - 3, yPos + 2);
-            // logDebug("Tile: (%u, %u)", leftVerticalAxis + 2, yPos + height - 3);
-            // logDebug("Tile: (%u, %u)", leftVerticalAxis + width - 3, yPos + height - 3);
-            // logDebug("Pos: %f", baseToSpritePosition(
-            //         getCenterPositionByTile(glm::uvec2{leftVerticalAxis + 2, yPos + 2}),
-            //         ENEMIES_STATS[ZOMBIE].tag));
-            // logDebug("");
-            
             const u32 prevRoomRight = roomRight;
             roomRight = leftVerticalAxis + width - 1;
             prevLeftVerticalAxis = leftVerticalAxis;
@@ -1485,7 +1616,6 @@ class Game {
                 glm::uvec2 tileLeftBottomEntrance{baseY - 1, startX };
                 glm::uvec2 tileLeftTopEntrance{ baseY + 1, startX + 1 };
                 // left end of tunnel, right entrance of previous room
-                logDebug("%u", map.roomCount - 1);
                 map.rooms[map.roomCount - 1].entranceRightBottom = getCenterPositionByTile({tileLeftBottomEntrance.y, tileLeftBottomEntrance.x});
                 map.rooms[map.roomCount - 1].entranceRightTop = getCenterPositionByTile({tileLeftTopEntrance.y - 1, tileLeftTopEntrance.x - 1});
                 
@@ -1544,7 +1674,11 @@ class Game {
             prevHeight = height;
             prevYPos = yPos;
         }
-        
+        initMapTilesArr();
+    }
+
+    void initMapTilesArr()
+    {
         map.tilesArrSize = 0;
         for (u32 i = 0; i < map.size.y; ++i)
         {
@@ -1556,7 +1690,6 @@ class Game {
         }
         map.tilesArr = (glm::uvec2*)ENGINE.globalAlloc(map.tilesArrSize * sizeof(glm::uvec2));
         glm::uvec2* debug = map.tilesArr;
-        logInfo("%d", map.tilesArrSize);
         u32 cnt = 0;
         for (u32 i = 0; i < map.size.y; ++i)
         {
@@ -1567,7 +1700,250 @@ class Game {
             }
         }
     }
-    
+
+    void loadMapFromFile(const char* path="map.txt")
+    {
+        map.size = {200,100};
+        u32 bufferSize = (map.size.x + 2) * map.size.y + 5;
+        char* buffer = (char*)ENGINE.temporaryAlloc(bufferSize);
+        memset(buffer, 0, bufferSize);
+        ENGINE.readWholeFile(buffer, bufferSize, path);
+
+        for (u32 i = 0; i < bufferSize; ++i)
+        {
+            if (buffer[i] == '\n' || buffer[i] == '\r')
+            {
+                memmove(buffer + i, buffer + i + 1, bufferSize - i - 1);
+                --bufferSize;
+                --i;
+            }
+        }
+        for (u32 i = 0; i < bufferSize; ++i)
+        {
+            assert(buffer[i] != '\n' && buffer[i] != '\r');
+        }
+        for (u32 i = 0; i < map.size.y; ++i)
+        {
+            for (u32 j = 0; j < map.size.x; ++j)
+            {
+                u32 x = j;
+                u32 y = map.size.y - i - 1;
+                glm::uvec2 tile = {x,y};
+                u32 ind = y * map.size.x + x;
+                u32 bufferInd = i * map.size.x + j;
+                switch (buffer[bufferInd])
+                {
+                case '.':
+                    map.tiles[ind] = TextureTag::NONE;
+                    break;
+
+                case 'X':
+                    map.tiles[ind] = TextureTag::WALL_LEFT;
+                    break;
+
+                case 'O':
+                    AnimationTag tag;
+                    EntityType type;
+                    if(ENGINE.randomU64(seed) % 2 == 0)
+                    {
+                        type = BIG_DEMON; 
+                        tag = BIG_DEMON_IDLE;
+                    }
+                    else
+                    {
+                        type = BIG_ZOMBIE;
+                        tag = BIG_ZOMBIE_IDLE;
+                    }
+                    addEntity(getCenterPositionByTile(tile), type, tag);
+                    map.tiles[ind] = randomFloor(seed);
+                    break;
+
+                case '@':
+                    startPosition = playerBaseToSpritePosition(getCenterPositionByTile(tile));
+                case '_':
+                    map.tiles[ind] = randomFloor(seed);
+                    break;
+                }
+            }
+        }
+        initMapTilesArr();
+    }
+
+    bool isFloor(TextureTag tag)
+    {
+        return tag >= TextureTag::FLOOR_START && tag <= TextureTag::FLOOR_END;
+    }
+
+    bool isWall(TextureTag tag)
+    {
+        return tag >= TextureTag::WALL_START && tag <= TextureTag::WALL_END;
+    }
+
+    void createPolygonOfWalkableSurface(glm::vec2*& vertexArr, u32& vertexArrSize)
+    {
+        constexpr glm::ivec2 dirIfLastRight[]
+        {
+            {0, -1}, // Down
+            {+1, 0}, // Right
+            {0, +1}, // Up
+            {-1, 0}, // Left
+        };
+        constexpr char dirCharIfLastRight[]
+        {
+            'D',
+            'R',
+            'U',
+            'L',
+        };
+
+        constexpr glm::ivec2 dirIfLastUp[]
+        {
+            {+1, 0}, // Right
+            {0, +1}, // Up
+            {-1, 0}, // Left
+            {0, -1}, // Down
+        };
+        constexpr char dirCharIfLastUp[]
+        {
+            'R',
+            'U',
+            'L',
+            'D',
+        };
+
+        constexpr glm::ivec2 dirIfLastLeft[]
+        {
+            {0, +1}, // Up
+            {-1, 0}, // Left
+            {0, -1}, // Down
+            {+1, 0}, // Right
+        };
+        constexpr char dirCharIfLastLeft[]
+        {
+            'U',
+            'L',
+            'D',
+            'R',
+        };
+
+        constexpr glm::ivec2 dirIfLastDown[]
+        {
+            {-1, 0}, // Left
+            {0, -1}, // Down
+            {+1, 0}, // Right
+            {0, +1}, // Up
+        };
+        constexpr char dirCharIfLastDown[]
+        {
+            'L',
+            'D',
+            'R',
+            'U',
+        };
+        constexpr u32 dirSize = ARRAY_COUNT(dirIfLastRight);
+
+        printf("\n");
+        for (u32 y = 0; y < map.size.y; ++y)
+        {
+            for (u32 x = 0; x < map.size.x; ++x)
+            {
+                u32 ind = (map.size.y - y - 1) * map.size.x + x;
+                if (isFloor(map.tiles[ind]))
+                {
+                    printf("%c", '_');
+                }
+                else if (isWall(map.tiles[ind]))
+                {
+                    printf("%c", 'X');
+                }
+                else
+                {
+                    printf("%c", '.');
+                }
+            }
+            printf("\n");
+        }
+        printf("\n");
+
+        glm::uvec2 startPos;
+        for (u32 y = 0; y < map.size.y; ++y)
+        {
+            for (u32 x = 0; x < map.size.x; ++x)
+            {
+                u32 ind = y * map.size.x + x;
+                if (isFloor(map.tiles[ind]))
+                {
+                    startPos = {x,y};
+                    goto LOOP_END;
+                }
+            }
+        }
+    LOOP_END:
+        vertexArrSize = 0;
+        vertexArr = (glm::vec2*)ENGINE.temporaryAlloc(10000 * sizeof(glm::vec2));
+        {
+            glm::uvec2 pos = startPos;
+            vertexArr[vertexArrSize++] = getCenterPositionByTile(pos);
+            // logInfo("(%u, %u)", pos.x, pos.y);
+            // make sure lastDir is Right (we iterate the matrix bottom-up and left-right)
+            char lastDir = 'R';
+            do
+            {
+                assert(
+                    pos.x > 1 &&
+                    pos.y > 1 &&
+                    pos.x < map.size.x - 2 &&
+                    pos.y < map.size.y - 2
+                );
+
+                const glm::ivec2* dir;
+                const char* dirChar;
+                switch (lastDir)
+                {
+                case 'R':
+                    dir = dirIfLastRight;
+                    dirChar = dirCharIfLastRight;
+                    break;
+
+                case 'U':
+                    dir = dirIfLastUp;
+                    dirChar = dirCharIfLastUp;
+                    break;
+
+                case 'L':
+                    dir = dirIfLastLeft;
+                    dirChar = dirCharIfLastLeft;
+                    break;
+
+                case 'D':
+                    dir = dirIfLastDown;
+                    dirChar = dirCharIfLastDown;
+                    break;
+                }
+
+                for (u32 i = 0; i < dirSize; ++i)
+                {
+                    glm::uvec2 newPos = (glm::ivec2)pos + dir[i];
+                    u32 tileInd = newPos.y * map.size.x + newPos.x;
+                    if (isFloor(map.tiles[tileInd]))
+                    {
+                        // logInfo("(%u, %u)", pos.x, pos.y);
+                        if (lastDir != dirChar[i]) // we change direction
+                        {
+                            // get the center of the tile (take into account the collision with the wall)
+                            glm::vec2 realPos = getCenterPositionByTile(pos);
+                            vertexArr[vertexArrSize++] = realPos;
+                        }
+                        pos = newPos;
+                        lastDir = dirChar[i];
+                        break;
+                    }
+                }
+            }
+            while (pos != startPos);
+        } 
+    }
+
     bool menuButton(glm::vec2 pos, const char* text)
     {
         buttonSize = {
@@ -1678,7 +2054,6 @@ class Game {
                 CREATE_ANIMATION_ARRAY(FORK);
             }
         }
-        
         ENGINE.createAnimation(tag, resultedArr, frameCount, ANIMATION_DURATION[tag] * ANIMATIONS_MULTIPLIER);
     }
 };
