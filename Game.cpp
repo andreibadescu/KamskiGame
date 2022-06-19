@@ -1357,8 +1357,14 @@ class Game {
     {
         f32 val = (b.y - a.y) * (c.x - b.x) -
                   (b.x - a.x) * (c.y - b.y);
-        assert(val != 0.0f);
-        return val > 0.0f;
+        return val < 0.0f;
+    }
+
+    bool isClockwise(glm::vec2 a, glm::vec2 b, glm::vec2 c)
+    {
+        f32 val = (b.x - a.x) * (c.y - a.y) -
+                  (c.x - a.x) * (b.y - a.y);
+        return val < 0.0f;
     }
 
     bool isPointInsidePolygon(glm::vec2 point, Polygon poly)
@@ -1376,58 +1382,131 @@ class Game {
         return false;
     }
 
-    void triangulatePolygon(glm::vec2* vertexArr, u32 vertexArrSize)
+    i32 clampIndex(i32 ind, i32 left, i32 right)
     {
-        u32 polygonCount = 0;
-        Polygon* polygons = (Polygon*)ENGINE.temporaryAlloc(10000 * sizeof(Polygon));
-        for (u32 i = 0; i < vertexArrSize; ++i)
+        if (ind < left)
+            return right;
+        if (ind > right)
+            return left;
+        return ind;
+    }
+
+    f32 computeAngle(glm::vec2 a, glm::vec2 b, glm::vec2 c)
+    {
+        glm::vec2 v1{
+            b.x - a.x,
+            b.y - a.y
+        };
+        glm::vec2 v2{
+            b.x - c.x,
+            b.y - c.y
+        };
+        return std::acos(glm::dot(v1, v2) / (glm::length(v1) * glm::length(v2)));
+    }
+
+    void triangulatePolygon(glm::vec2* points, u32 n)
+    {
+        u32 trianglesCount = 0;
+        Polygon* triangles = (Polygon*)ENGINE.temporaryAlloc(10000 * sizeof(Polygon));
+
+        u32 m = n;
+        f32* angles = (f32*)ENGINE.temporaryAlloc(n * sizeof(f32));
+
+        if (points[0].x == points[n-1].x &&
+            points[0].y == points[n-1].y)
         {
-            u32 prevInd = (vertexArrSize + i - 1) % vertexArrSize;
-            u32 nextInd = (i + 1) % vertexArrSize;
+            --n;
+        }
 
-            glm::vec2& a = vertexArr[prevInd];
-            glm::vec2& b = vertexArr[i];
-            glm::vec2& c = vertexArr[nextInd];
-
-            glm::uvec2 tile = getTileByPosition(b);
-            logDebug("%u: (%u,%u)", i, tile.x, tile.y);
-
-            if (isAngleReflexive(a, b, c))
+        f32 max_x = points[0].x;
+        i32 i;
+        for (i32 k = 1; k < n; ++k)
+        {
+            if (points[k].x > max_x)
             {
-                glm::vec2* vertices = (glm::vec2*)ENGINE.globalAlloc(3 * sizeof(glm::vec2));
-                vertices[0] = a;
-                vertices[1] = b;
-                vertices[2] = c;
-                Polygon poly{vertices, 3};
-                bool ok = true;
-                for (u32 j = 0; j + 1 < i; ++j)
-                {
-                    if (isPointInsidePolygon(vertexArr[j], poly))
-                    {
-                        ok = false;
-                    }
-                }
-                for (u32 j = i + 2; j < vertexArrSize; ++j)
-                {
-                    if (isPointInsidePolygon(vertexArr[j], poly))
-                    {
-                        ok = false;
-                    }
-                }
-                if (ok)
-                {
-                    polygons[polygonCount++] = poly;
-                }
-                logInfo("Reflexiv: True!");
-            }
-            else
-            {
-                logInfo("Reflexiv: False");
+                max_x = points[k].x;
+                i = k;
             }
         }
-        map.navMesh.polygons = (Polygon*)ENGINE.globalAlloc(polygonCount * sizeof(Polygon));
-        map.navMesh.polygonCount = polygonCount;
-        memcpy(map.navMesh.polygons, polygons, polygonCount * sizeof(Polygon));
+
+        i32 h = clampIndex(i-1, 0, n-1);
+        i32 j = clampIndex(i+1, 0, n-1);
+
+        glm::vec2 a = points[h];
+        glm::vec2 b = points[i];
+        glm::vec2 c = points[j];
+
+        bool poly_cw = isClockwise(a, b, c);
+
+        for (u32 k = 0; k < n; ++k)
+        {
+            a = points[k];
+            b = points[(k + 1) % n];
+            c = points[(k + 2) % n];
+
+            f32 theta = computeAngle(a, b, c);
+            bool ear_cw = isClockwise(a, b, c);
+
+            if (ear_cw != poly_cw)
+                theta = 2.0f * PI - theta;
+            
+            angles[(k+1) % n] = theta;
+        }
+
+        for (i32 k = 0; k + 2 < m; ++k)
+        {
+            f32 min_ang = angles[0];
+            i32 i = 0;
+            for (u32 ind = 1; ind < n; ++ind)
+            {
+                if (angles[ind] < min_ang)
+                {
+                    min_ang = angles[ind];
+                    i = ind;
+                }
+            }
+
+            i32 h = clampIndex(i-1, 0, n-1);
+            i32 j = clampIndex(i+1, 0, n-1);
+
+            glm::vec2* triangle = (glm::vec2*)ENGINE.globalAlloc(3 * sizeof(glm::vec2));
+            triangle[0] = points[h];
+            triangle[1] = points[i];
+            triangle[2] = points[j];
+            triangles[trianglesCount++] = {triangle, 3};
+
+            //==================== UPDATE ANGLE k - 1 ====================
+            glm::vec2 a = points[clampIndex(h-1, 0, n-1)];
+            glm::vec2 b = points[h];
+            glm::vec2 c = points[j];
+            f32 ear_cw = isClockwise(a, b, c);
+            f32 theta = computeAngle(a, b, c);
+            if (ear_cw != poly_cw)
+                theta = 2.0f * PI - theta;
+            angles[h] = theta;
+            //============================================================
+
+            //==================== UPDATE ANGLE k + 1 ====================
+            a = points[h];
+            b = points[j];
+            c = points[clampIndex(j+1, 0, n-1)];
+            ear_cw = isClockwise(a, b, c);
+            theta = computeAngle(a, b, c);
+            if (ear_cw != poly_cw)
+                theta = 2.0f * PI - theta;
+            angles[j] = theta;
+            //============================================================
+
+            memmove(points + i, points + i + 1, n - i - 1);
+            memmove(angles + i, angles + i + 1, n - i - 1);
+            --n;
+        }
+
+        map.navMesh.polygons = (Polygon*)ENGINE.globalAlloc(trianglesCount * sizeof(Polygon));
+        map.navMesh.polygonCount = trianglesCount;
+        memcpy(map.navMesh.polygons, triangles, trianglesCount * sizeof(Polygon));
+
+        // DEBUG PART
         logInfo("Triangles:");
         for (u32 i = 0; i < map.navMesh.polygonCount; ++i)
         {
