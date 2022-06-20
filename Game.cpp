@@ -796,12 +796,16 @@ class Game {
         // Test path finding
         if (actionState.mana == KeyState::PRESS)
         {
-            glm::vec2 goal = glm::vec2(camera.x, camera.y) + cursorPosition / camera.z;
-            findPath(
-                entityRegistry.getComponent<TransformComponent>(playerEId).position,
-                goal,
-                debugPath
-            );
+            if(debugPath.size() == 0)
+            {
+                glm::vec2 goal = glm::vec2(camera.x, camera.y) + cursorPosition / camera.z;
+                findPath(entityRegistry.getComponent<TransformComponent>(playerEId).position,
+                         goal,
+                         debugPath);
+            } else
+            {
+                debugPath.clear();
+            }
         }
     }
     
@@ -1331,7 +1335,7 @@ class Game {
         }
         ENGINE.globalFree(mat);
     }
-
+    
     bool arePolygonsNeighbors(Polygon& A, Polygon& B)
     {
         u32 count = 0;
@@ -2084,29 +2088,6 @@ class Game {
         };
         constexpr u32 dirSize = ARRAY_COUNT(dirIfLastRight);
         
-        printf("\n");
-        for (u32 y = 0; y < map.size.y; ++y)
-        {
-            for (u32 x = 0; x < map.size.x; ++x)
-            {
-                u32 ind = (map.size.y - y - 1) * map.size.x + x;
-                if (isFloor(map.tiles[ind]))
-                {
-                    printf("%c", '_');
-                }
-                else if (isWall(map.tiles[ind]))
-                {
-                    printf("%c", 'X');
-                }
-                else
-                {
-                    printf("%c", '.');
-                }
-            }
-            printf("\n");
-        }
-        printf("\n");
-        
         glm::uvec2 startPos;
         for (u32 y = 0; y < map.size.y; ++y)
         {
@@ -2120,6 +2101,7 @@ class Game {
                 }
             }
         }
+        
         LOOP_END:
         vertexArrSize = 0;
         vertexArr = (glm::vec2*)ENGINE.temporaryAlloc(10000 * sizeof(glm::vec2));
