@@ -7,6 +7,14 @@
 class Game {
     public:
     
+    union Edge
+    {
+        struct {
+            glm::vec2 first;
+            glm::vec2 second;
+        };
+        glm::vec2 v[2];
+    };
     struct Polygon
     {
         glm::vec2* vertices;
@@ -84,7 +92,8 @@ class Game {
             MenuPhase menuPhase;
             u32 menuTagIndex;
             std::vector<u32> debugPath;
-
+            Edge edgeArr[1000];
+            u32 edgeCount;
             struct
             {
                 KeyState startGame;
@@ -279,7 +288,7 @@ class Game {
         center /= (f32)poly.vertexCount;
         return center;
     }
-
+    
     bool isCollision(glm::vec2 posA, glm::vec2 posB,
                      glm::vec2 sizeA, glm::vec2 sizeB)
     {
@@ -1497,18 +1506,18 @@ class Game {
         }
         assert(NULL);
     }
-
+    
     f32 triarea2(glm::vec2 a, glm::vec2 b, glm::vec2 c)
     {
         return (c.x - a.x) * (b.y - a.y) - (b.x - a.x) * (c.y - a.y);
     } 
-
+    
     bool vecEqual(glm::vec2 a, glm::vec2 b)
     {
         constexpr float eq = 0.001f * 0.001f;
         return glm::distance(a,b) < eq;
     }
-
+    
     bool getTriangleSharedEdge(Polygon& A, Polygon& B, glm::vec2 edge[2])
     {
         u32 count = 0;
@@ -1527,22 +1536,13 @@ class Game {
         }
         return false;
     }
-
+    
     void simpleFunnel(glm::vec2 start, glm::vec2 goal)
     {
-        union Edge
-        {
-            struct {
-                glm::vec2 first;
-                glm::vec2 second;
-            };
-            glm::vec2 v[2];
-        };
+        
         Map::NavigationMesh& mesh = map.navMesh;
         std::reverse(debugPath.begin(), debugPath.end());
-
-        Edge* edgeArr = (Edge*)ENGINE.temporaryAlloc(1000 * sizeof(Edge));
-        u32 edgeCount = 0;
+        
         for (u32 i = 0; i + 1 <  debugPath.size(); ++i)
         {
             Polygon p1 = mesh.polygons[debugPath[i]];

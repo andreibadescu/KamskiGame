@@ -222,6 +222,14 @@ void Game::gameRender()
                 }
                 ENGINE.endTriangleFan();
             }
+            ENGINE.beginLines(camera);
+            
+            for(u32 i = 0; i < edgeCount; i++)
+            {
+                ENGINE.drawLine(edgeArr[i].first, edgeArr[i].second, {1.0f, 1.0f, 1.0f, 1.0f});
+            }
+            
+            ENGINE.endLines();
         }
     }
     ENGINE.swapClear();
