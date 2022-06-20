@@ -124,6 +124,9 @@ void Game::gameUpdate()
             
             ENGINE.simulateParticles(deltaTime);
             
+            TransformComponent& tr = entityRegistry.getComponent<TransformComponent>(playerEId);
+            glm::uvec2 tileCheck = getTileByPosition(tr.position);
+            logError("PlayerPos: %u %u", tileCheck.x, tileCheck.y);
             
             EntityComponent& ent = entityRegistry.getComponent<EntityComponent>(playerEId);
             if(actionState.hp == KeyState::PRESS)
@@ -136,7 +139,7 @@ void Game::gameUpdate()
             
             velocitySystem();
             handleCombatPhases();
-            updateEnemies();
+            //updateEnemies();
             updateHealthBars();
             moveProjectiles();
             updatePlayer();
@@ -159,6 +162,7 @@ void Game::gameUpdate()
         }
         break;
     }
+
 }
 
 void Game::gameRender()
@@ -180,19 +184,15 @@ void Game::gameRender()
     }
     renderCursor();
     ENGINE.endBatch();
-    
     u32 count = map.navMesh.polygonCount;
-    for(u32 i = 0; i != map.navMesh.polygonCount; i++)
+    for(u32 i = 0; i < map.navMesh.polygonCount; i++)
     {
         ENGINE.beginTriangleFan(camera);
         u32 vertexCount = map.navMesh.polygons[i].vertexCount;
-        logInfo("Triangle %u:", i);
         for(u32 vInd = 0; vInd != map.navMesh.polygons[i].vertexCount; vInd++)
         {
-            logInfo("(%f, %f)", map.navMesh.polygons[i].vertices[vInd].x, map.navMesh.polygons[i].vertices[vInd].y);
-            ENGINE.addFanVertex(map.navMesh.polygons[i].vertices[vInd]);
+            ENGINE.addFanVertex(map.navMesh.polygons[i].vertices[vInd], i);
         }
-        logInfo("");
         ENGINE.endTriangleFan();
     }
     

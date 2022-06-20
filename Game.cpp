@@ -1327,46 +1327,47 @@ class Game {
         u32 vertexArrSize;
         createPolygonOfWalkableSurface(vertexArr, vertexArrSize);
         // logInfo("vertexArrSize: %u", vertexArrSize);
+        
         for (u32 i = 0; i < vertexArrSize; ++i)
         {
             glm::uvec2 tile = getTileByPosition(vertexArr[i]);
             map.tiles[tile.y * map.size.x + tile.x] = TextureTag::FLOOR_HOLE;
-            // logInfo("(%u,%u)", tile.x, tile.y);
+            logInfo("(%u,%u)", tile.x, tile.y);
         }
         triangulatePolygon(vertexArr, vertexArrSize);
     }
-
+    
     f32 sign(glm::vec2 p1, glm::vec2 p2, glm::vec2 p3)
     {
         return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
     }
-
+    
     bool isPointInsideTriangle(glm::vec2 pt, glm::vec2 v1, glm::vec2 v2, glm::vec2 v3)
     {
         f32 d1 = sign(pt, v1, v2);
         f32 d2 = sign(pt, v2, v3);
         f32 d3 = sign(pt, v3, v1);
-
+        
         bool has_neg = (d1 < 0) || (d2 < 0) || (d3 < 0);
         bool has_pos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-
+        
         return !(has_neg && has_pos);
     }
-
+    
     bool isAngleReflexive(glm::vec2 a, glm::vec2 b, glm::vec2 c)
     {
         f32 val = (b.y - a.y) * (c.x - b.x) -
-                  (b.x - a.x) * (c.y - b.y);
+        (b.x - a.x) * (c.y - b.y);
         return val < 0.0f;
     }
-
+    
     bool isClockwise(glm::vec2 a, glm::vec2 b, glm::vec2 c)
     {
         f32 val = (b.x - a.x) * (c.y - a.y) -
-                  (c.x - a.x) * (b.y - a.y);
+        (c.x - a.x) * (b.y - a.y);
         return val < 0.0f;
     }
-
+    
     bool isPointInsidePolygon(glm::vec2 point, Polygon poly)
     {
         glm::vec2& a = poly.vertices[0];
@@ -1381,7 +1382,7 @@ class Game {
         }
         return false;
     }
-
+    
     i32 clampIndex(i32 ind, i32 left, i32 right)
     {
         if (ind < left)
@@ -1390,7 +1391,7 @@ class Game {
             return left;
         return ind;
     }
-
+    
     f32 computeAngle(glm::vec2 a, glm::vec2 b, glm::vec2 c)
     {
         glm::vec2 v1{
@@ -1403,109 +1404,117 @@ class Game {
         };
         return std::acos(glm::dot(v1, v2) / (glm::length(v1) * glm::length(v2)));
     }
-
-    void triangulatePolygon(glm::vec2* points, u32 n)
+    
+    void triangulatePolygon(glm::vec2* points, u32 pointCount)
     {
         u32 trianglesCount = 0;
         Polygon* triangles = (Polygon*)ENGINE.temporaryAlloc(10000 * sizeof(Polygon));
-
-        u32 m = n;
-        f32* angles = (f32*)ENGINE.temporaryAlloc(n * sizeof(f32));
-
-        if (points[0].x == points[n-1].x &&
-            points[0].y == points[n-1].y)
+        
+        struct Node
         {
-            --n;
-        }
-
-        f32 max_x = points[0].x;
-        i32 i;
-        for (i32 k = 1; k < n; ++k)
+            glm::vec2 vertex;
+            Node* prev;
+            Node* next;
+        };
+        
+        struct CircularList
         {
-            if (points[k].x > max_x)
-            {
-                max_x = points[k].x;
-                i = k;
-            }
-        }
-
-        i32 h = clampIndex(i-1, 0, n-1);
-        i32 j = clampIndex(i+1, 0, n-1);
-
-        glm::vec2 a = points[h];
-        glm::vec2 b = points[i];
-        glm::vec2 c = points[j];
-
-        bool poly_cw = isClockwise(a, b, c);
-
-        for (u32 k = 0; k < n; ++k)
-        {
-            a = points[k];
-            b = points[(k + 1) % n];
-            c = points[(k + 2) % n];
-
-            f32 theta = computeAngle(a, b, c);
-            bool ear_cw = isClockwise(a, b, c);
-
-            if (ear_cw != poly_cw)
-                theta = 2.0f * PI - theta;
+            Node* head;
+            u32 nodeCount;
             
-            angles[(k+1) % n] = theta;
-        }
-
-        for (i32 k = 0; k + 2 < m; ++k)
-        {
-            f32 min_ang = angles[0];
-            i32 i = 0;
-            for (u32 ind = 1; ind < n; ++ind)
+            void addNode(glm::vec2 vertex)
             {
-                if (angles[ind] < min_ang)
+                if(!head)
                 {
-                    min_ang = angles[ind];
-                    i = ind;
+                    head = (Node*)ENGINE.temporaryAlloc(sizeof(Node));
+                    head->vertex = vertex;
+                    head->prev = head;
+                    head->next = head;
+                } else
+                {
+                    Node* temp = (Node*)ENGINE.temporaryAlloc(sizeof(Node));
+                    
+                    temp->vertex = vertex;
+                    temp->prev = head->prev;
+                    temp->next = head;
+                    
+                    head->prev->next = temp;
+                    head->prev = temp;
+                }
+                
+                nodeCount++;
+            }
+            
+            void removeNode(Node* node)
+            {
+                node->prev->next = node->next;
+                node->next->prev = node->prev;
+                nodeCount--;
+                
+                if(!nodeCount)
+                {
+                    head = nullptr;
+                } else if(head == node)
+                {
+                    head = node->next;
                 }
             }
-
-            i32 h = clampIndex(i-1, 0, n-1);
-            i32 j = clampIndex(i+1, 0, n-1);
-
-            glm::vec2* triangle = (glm::vec2*)ENGINE.globalAlloc(3 * sizeof(glm::vec2));
-            triangle[0] = points[h];
-            triangle[1] = points[i];
-            triangle[2] = points[j];
-            triangles[trianglesCount++] = {triangle, 3};
-
-            //==================== UPDATE ANGLE k - 1 ====================
-            glm::vec2 a = points[clampIndex(h-1, 0, n-1)];
-            glm::vec2 b = points[h];
-            glm::vec2 c = points[j];
-            f32 ear_cw = isClockwise(a, b, c);
-            f32 theta = computeAngle(a, b, c);
-            if (ear_cw != poly_cw)
-                theta = 2.0f * PI - theta;
-            angles[h] = theta;
-            //============================================================
-
-            //==================== UPDATE ANGLE k + 1 ====================
-            a = points[h];
-            b = points[j];
-            c = points[clampIndex(j+1, 0, n-1)];
-            ear_cw = isClockwise(a, b, c);
-            theta = computeAngle(a, b, c);
-            if (ear_cw != poly_cw)
-                theta = 2.0f * PI - theta;
-            angles[j] = theta;
-            //============================================================
-
-            memmove(points + i, points + i + 1, n - i - 1);
-            memmove(angles + i, angles + i + 1, n - i - 1);
-            --n;
+        };
+        
+        CircularList list = {};
+        
+        for(u32 i = 0; i < pointCount; i++)
+        {
+            list.addNode(points[i]);
         }
-
+        
+        Node* ptr = list.head;
+        
+        for(; list.nodeCount > 2; ptr = ptr->next)
+        {
+            if(!isClockwise(ptr->prev->vertex, ptr->vertex, ptr->next->vertex))
+            {
+                bool shouldBreak = false;
+                for(u32 j = 0; j < pointCount; j++)
+                {
+                    if(points[j] == ptr->prev->vertex || 
+                       points[j] == ptr->next->vertex ||
+                       points[j] == ptr->vertex)
+                        continue;
+                    
+                    if(isPointInsideTriangle(points[j], ptr->prev->vertex, ptr->vertex, ptr->next->vertex))
+                    {
+                        logInfo("points[j] = (%f, %f)", points[j].x, points[j].y);
+                        logInfo("prev = (%f, %f)", ptr->prev->vertex.x, ptr->prev->vertex.y);
+                        logInfo("this = (%f, %f)", ptr->vertex.x, ptr->vertex.y);
+                        logInfo("next = (%f, %f)", ptr->next->vertex.x, ptr->next->vertex.y);
+                        shouldBreak = true;
+                        break;
+                    }
+                }
+                
+                if(!shouldBreak)
+                {
+                    glm::vec2* triangle = (glm::vec2*)ENGINE.globalAlloc(sizeof(glm::vec2) * 3);
+                    
+                    triangle[0] = ptr->prev->vertex;
+                    triangle[1] = ptr->vertex;
+                    triangle[2] = ptr->next->vertex;
+                    
+                    triangles[trianglesCount].vertices = triangle; 
+                    triangles[trianglesCount].vertexCount = 3; 
+                    
+                    trianglesCount++;
+                    
+                    list.removeNode(ptr);
+                }
+            }
+        }
+        
         map.navMesh.polygons = (Polygon*)ENGINE.globalAlloc(trianglesCount * sizeof(Polygon));
         map.navMesh.polygonCount = trianglesCount;
         memcpy(map.navMesh.polygons, triangles, trianglesCount * sizeof(Polygon));
-
+        
         // DEBUG PART
         logInfo("Triangles:");
         for (u32 i = 0; i < map.navMesh.polygonCount; ++i)
@@ -1518,13 +1527,13 @@ class Game {
                 tile[j] = getTileByPosition(poly.vertices[j]);
             }
             logInfo("{(%u,%u), (%u,%u), (%u,%u)}",
-                tile[0].x,
-                tile[0].y,
-                tile[1].x,
-                tile[1].y,
-                tile[2].x,
-                tile[2].y
-            );
+                    tile[0].x,
+                    tile[0].y,
+                    tile[1].x,
+                    tile[1].y,
+                    tile[2].x,
+                    tile[2].y
+                    );
         }
     }
     
@@ -1756,7 +1765,7 @@ class Game {
         }
         initMapTilesArr();
     }
-
+    
     void initMapTilesArr()
     {
         map.tilesArrSize = 0;
@@ -1780,7 +1789,7 @@ class Game {
             }
         }
     }
-
+    
     void loadMapFromFile(const char* path="map.txt")
     {
         map.size = {200,100};
@@ -1788,7 +1797,7 @@ class Game {
         char* buffer = (char*)ENGINE.temporaryAlloc(bufferSize);
         memset(buffer, 0, bufferSize);
         ENGINE.readWholeFile(buffer, bufferSize, path);
-
+        
         for (u32 i = 0; i < bufferSize; ++i)
         {
             if (buffer[i] == '\n' || buffer[i] == '\r')
@@ -1813,15 +1822,15 @@ class Game {
                 u32 bufferInd = i * map.size.x + j;
                 switch (buffer[bufferInd])
                 {
-                case '.':
+                    case '.':
                     map.tiles[ind] = TextureTag::NONE;
                     break;
-
-                case 'X':
+                    
+                    case 'X':
                     map.tiles[ind] = TextureTag::WALL_LEFT;
                     break;
-
-                case 'O':
+                    
+                    case 'O':
                     AnimationTag tag;
                     EntityType type;
                     if(ENGINE.randomU64(seed) % 2 == 0)
@@ -1837,10 +1846,10 @@ class Game {
                     addEntity(getCenterPositionByTile(tile), type, tag);
                     map.tiles[ind] = randomFloor(seed);
                     break;
-
-                case '@':
+                    
+                    case '@':
                     startPosition = playerBaseToSpritePosition(getCenterPositionByTile(tile));
-                case '_':
+                    case '_':
                     map.tiles[ind] = randomFloor(seed);
                     break;
                 }
@@ -1848,17 +1857,17 @@ class Game {
         }
         initMapTilesArr();
     }
-
+    
     bool isFloor(TextureTag tag)
     {
         return tag >= TextureTag::FLOOR_START && tag <= TextureTag::FLOOR_END;
     }
-
+    
     bool isWall(TextureTag tag)
     {
         return tag >= TextureTag::WALL_START && tag <= TextureTag::WALL_END;
     }
-
+    
     void createPolygonOfWalkableSurface(glm::vec2*& vertexArr, u32& vertexArrSize)
     {
         constexpr glm::ivec2 dirIfLastRight[]
@@ -1875,7 +1884,7 @@ class Game {
             'U',
             'L',
         };
-
+        
         constexpr glm::ivec2 dirIfLastUp[]
         {
             {+1, 0}, // Right
@@ -1890,7 +1899,7 @@ class Game {
             'L',
             'D',
         };
-
+        
         constexpr glm::ivec2 dirIfLastLeft[]
         {
             {0, +1}, // Up
@@ -1905,7 +1914,7 @@ class Game {
             'D',
             'R',
         };
-
+        
         constexpr glm::ivec2 dirIfLastDown[]
         {
             {-1, 0}, // Left
@@ -1921,7 +1930,7 @@ class Game {
             'U',
         };
         constexpr u32 dirSize = ARRAY_COUNT(dirIfLastRight);
-
+        
         printf("\n");
         for (u32 y = 0; y < map.size.y; ++y)
         {
@@ -1944,7 +1953,7 @@ class Game {
             printf("\n");
         }
         printf("\n");
-
+        
         glm::uvec2 startPos;
         for (u32 y = 0; y < map.size.y; ++y)
         {
@@ -1958,7 +1967,7 @@ class Game {
                 }
             }
         }
-    LOOP_END:
+        LOOP_END:
         vertexArrSize = 0;
         vertexArr = (glm::vec2*)ENGINE.temporaryAlloc(10000 * sizeof(glm::vec2));
         {
@@ -1970,37 +1979,37 @@ class Game {
             do
             {
                 assert(
-                    pos.x > 1 &&
-                    pos.y > 1 &&
-                    pos.x < map.size.x - 2 &&
-                    pos.y < map.size.y - 2
-                );
-
+                       pos.x > 1 &&
+                       pos.y > 1 &&
+                       pos.x < map.size.x - 2 &&
+                       pos.y < map.size.y - 2
+                       );
+                
                 const glm::ivec2* dir;
                 const char* dirChar;
                 switch (lastDir)
                 {
-                case 'R':
+                    case 'R':
                     dir = dirIfLastRight;
                     dirChar = dirCharIfLastRight;
                     break;
-
-                case 'U':
+                    
+                    case 'U':
                     dir = dirIfLastUp;
                     dirChar = dirCharIfLastUp;
                     break;
-
-                case 'L':
+                    
+                    case 'L':
                     dir = dirIfLastLeft;
                     dirChar = dirCharIfLastLeft;
                     break;
-
-                case 'D':
+                    
+                    case 'D':
                     dir = dirIfLastDown;
                     dirChar = dirCharIfLastDown;
                     break;
                 }
-
+                
                 for (u32 i = 0; i < dirSize; ++i)
                 {
                     glm::uvec2 newPos = (glm::ivec2)pos + dir[i];
@@ -2023,7 +2032,7 @@ class Game {
             while (pos != startPos);
         } 
     }
-
+    
     bool menuButton(glm::vec2 pos, const char* text)
     {
         buttonSize = {
