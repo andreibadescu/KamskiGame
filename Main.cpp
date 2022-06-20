@@ -183,6 +183,11 @@ void Game::gameRender()
         break;
     }
     renderCursor();
+    /*
+    glm::vec2 goal = glm::vec2(camera.x, camera.y) + cursorPosition / camera.z;
+    
+    ENGINE.drawTexturedQuad(goal, {100,100}, ID(HEALTH_POTION), 0); 
+    */
     ENGINE.endBatch();
     u32 count = map.navMesh.polygonCount;
     static bool showTriangles = false;
@@ -192,15 +197,32 @@ void Game::gameRender()
     
     if(showTriangles)
     {
-        for(u32 i = 0; i < map.navMesh.polygonCount; i++)
+        if(debugPath.size() == 0)
         {
-            ENGINE.beginTriangleFan(camera);
-            u32 vertexCount = map.navMesh.polygons[i].vertexCount;
-            for(u32 vInd = 0; vInd != map.navMesh.polygons[i].vertexCount; vInd++)
+            for(u32 i = 0; i < map.navMesh.polygonCount; i++)
             {
-                ENGINE.addFanVertex(map.navMesh.polygons[i].vertices[vInd], i);
+                ENGINE.beginTriangleFan(camera);
+                u32 vertexCount = map.navMesh.polygons[i].vertexCount;
+                for(u32 vInd = 0; vInd != map.navMesh.polygons[i].vertexCount; vInd++)
+                {
+                    ENGINE.addFanVertex(map.navMesh.polygons[i].vertices[vInd], i);
+                }
+                ENGINE.endTriangleFan();
             }
-            ENGINE.endTriangleFan();
+        }
+        else
+        {
+            for(glm::vec2 p : debugPath)
+            {
+                u32 i = getPolygonIndexByPoint(p);
+                ENGINE.beginTriangleFan(camera);
+                u32 vertexCount = map.navMesh.polygons[i].vertexCount;
+                for(u32 vInd = 0; vInd != map.navMesh.polygons[i].vertexCount; vInd++)
+                {
+                    ENGINE.addFanVertex(map.navMesh.polygons[i].vertices[vInd], i);
+                }
+                ENGINE.endTriangleFan();
+            }
         }
     }
     ENGINE.swapClear();

@@ -84,6 +84,8 @@ class Game {
             MenuPhase menuPhase;
             u32 menuTagIndex;
             
+            std::vector<glm::vec2> debugPath;
+            
             struct
             {
                 KeyState startGame;
@@ -794,13 +796,11 @@ class Game {
         // Test path finding
         if (actionState.mana == KeyState::PRESS)
         {
-            std::vector<glm::vec2> path;
-            glm::vec2 goal;
-            ENGINE.getMousePosition(goal.x, goal.y);
+            glm::vec2 goal = glm::vec2(camera.x, camera.y) + cursorPosition / camera.z;
             findPath(
                 entityRegistry.getComponent<TransformComponent>(playerEId).position,
                 goal,
-                path
+                debugPath
             );
         }
     }
@@ -1038,6 +1038,7 @@ class Game {
     
     void startGame()
     {
+        debugPath = std::vector<glm::vec2>();
         seed = std::random_device()();
         initMap(MAP_SIZE_X, MAP_SIZE_Y);
         addPlayer(startPosition, ENTITY_TYPE_PLAYER, ELF_M_IDLE);
@@ -1333,13 +1334,16 @@ class Game {
 
     bool arePolygonsNeighbors(Polygon& A, Polygon& B)
     {
+        u32 count = 0;
         for (u32 i = 0; i < A.vertexCount; ++i)
         {
             for (u32 j = 0; j < B.vertexCount; ++j)
             {
                 if (A.vertices[i] == B.vertices[j])
                 {
-                    return true;
+                    count++;
+                    if(count == 2)
+                        return true;
                 }
             }
         }
@@ -1375,7 +1379,7 @@ class Game {
             map.tiles[tile.y * map.size.x + tile.x] = TextureTag::FLOOR_HOLE;
             logInfo("(%u,%u)", tile.x, tile.y);
         }
-
+        
         triangulatePolygon(vertexArr, vertexArrSize);
         Map::NavigationMesh& mesh = map.navMesh;
         for (u32 i = 0; i < mesh.polygonCount; ++i)
@@ -1395,7 +1399,7 @@ class Game {
             }
         }
     }
-
+    
     f32 h(u32 ind1, u32 ind2)
     {
         Polygon* poly = map.navMesh.polygons;
@@ -1403,7 +1407,7 @@ class Game {
         glm::vec2 p2 = calcPolygonCenter(poly[ind2]);
         return glm::distance(p1, p2);
     }
-
+    
     u32 getPolygonIndexByPoint(glm::vec2 point)
     {
         Map::NavigationMesh& mesh = map.navMesh;
@@ -1414,18 +1418,18 @@ class Game {
         }
         return INVALID;
     }
-
+    
     void findPath(glm::vec2 start, glm::vec2 goal, std::vector<glm::vec2>& totalPath)
     {
         totalPath.clear();
         Map::NavigationMesh& mesh = map.navMesh; 
-
+        
         u32 startInd = getPolygonIndexByPoint(start);
         assert(startInd != INVALID);
-
+        
         u32 goalInd = getPolygonIndexByPoint(goal);
         assert(goalInd != INVALID);
-
+        
         u32* cameFrom = (u32*)ENGINE.temporaryAlloc(mesh.polygonCount * sizeof(u32));
         f32* gScore = (f32*)ENGINE.temporaryAlloc(mesh.polygonCount * sizeof(f32));
         f32* fScore = (f32*)ENGINE.temporaryAlloc(mesh.polygonCount * sizeof(f32));
@@ -1436,19 +1440,19 @@ class Game {
             gScore[i] = INFINITY;
             fScore[i] = INFINITY;
         }
-
+        
         cameFrom[startInd] = INVALID;
         gScore[startInd] = 0.0f;
         fScore[startInd] = h(startInd, goalInd);
         marked[startInd] = true;
-
+        
         auto compare = [fScore](u32 a, u32 b)
         {
             return fScore[a] > fScore[b];
         };
         std::priority_queue<u32, std::vector<u32>, decltype(compare)> openSet(compare);
         openSet.push(startInd);
-
+        
         while (!openSet.empty())
         {
             u32 currentInd = openSet.top();
