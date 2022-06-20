@@ -9,12 +9,20 @@ class Game {
     
     union Edge
     {
-        struct {
+        struct 
+        {
             glm::vec2 first;
             glm::vec2 second;
         };
         glm::vec2 v[2];
+
+        void copyEdge(glm::vec2 edge[2])
+        {
+            first = edge[0];
+            second = edge[1];
+        }
     };
+
     struct Polygon
     {
         glm::vec2* vertices;
@@ -94,6 +102,8 @@ class Game {
             std::vector<u32> debugPath;
             Edge edgeArr[1000];
             u32 edgeCount;
+            glm::vec2 shortestPath[1000];
+            u32 shortestPathCount;
             struct
             {
                 KeyState startGame;
@@ -1539,10 +1549,14 @@ class Game {
     
     void simpleFunnel(glm::vec2 start, glm::vec2 goal)
     {
-        
         Map::NavigationMesh& mesh = map.navMesh;
         std::reverse(debugPath.begin(), debugPath.end());
-        
+
+        edgeCount = 0;
+
+        glm::vec2 startPortal[2]{start, start};
+        edgeArr[edgeCount++].copyEdge(startPortal);
+
         for (u32 i = 0; i + 1 <  debugPath.size(); ++i)
         {
             Polygon p1 = mesh.polygons[debugPath[i]];
@@ -1550,11 +1564,12 @@ class Game {
             glm::vec2 edge[2];
             if (getTriangleSharedEdge(p1, p2, edge))
             {
-                edgeArr[edgeCount].v[0] = edge[0];
-                edgeArr[edgeCount].v[1] = edge[1];
-                ++edgeCount;
+                edgeArr[edgeCount++].copyEdge(edge);
             }
         }
+
+        glm::vec2 endPortal[2]{goal, goal};
+        edgeArr[edgeCount++].copyEdge(endPortal);
 
         for (u32 i = 0; i < edgeCount; ++i)
         {
@@ -1562,6 +1577,82 @@ class Game {
             logInfo("(%f, %f)", edgeArr[i].first.x, edgeArr[i].first.y);
             logInfo("(%f, %f)", edgeArr[i].second.x, edgeArr[i].second.y);
         }
+
+        u32 shortestPathCount = 0;
+        u32 apexIndex = 0;
+        u32 leftIndex = 0;
+        u32 rightIndex = 0;
+        // init scan state
+        glm::vec2 portalApex = edgeArr[0].first;
+        glm::vec2 portalLeft = edgeArr[0].first;
+        glm::vec2 portalRight = edgeArr[0].second;
+
+        // add start point
+        shortestPath[shortestPathCount++] = portalApex;
+        for (u32 i = 1; i < edgeCount; ++i)
+        {
+            glm::vec2 left = edgeArr[i].first;
+            glm::vec2 right = edgeArr[i].second;
+
+            // update right vertex
+            if (triarea2(portalApex, portalRight, right) <= 0.0f)
+            {
+                if (vecEqual(portalApex, portalRight) ||
+                    triarea2(portalApex, portalLeft, right) > 0.0f)
+                {
+                    // tighten the funnel
+                    portalRight = right;
+                    rightIndex = i;
+                }
+                else
+                {
+                    // right over left
+                    // insert left to path and restart scan from portal left point
+                    shortestPath[shortestPathCount++] = portalLeft;
+                    // make current left the new apex
+                    portalApex = portalLeft;
+                    apexIndex = leftIndex;
+                    // reset portal
+                    portalLeft = portalApex;
+                    portalRight = portalApex;
+                    leftIndex = apexIndex;
+                    rightIndex = apexIndex;
+                    // restart scan
+                    i = apexIndex;
+                    continue;
+                }
+            }
+
+            // update left vertex
+            if (triarea2(portalApex, portalLeft, left) >= 0.0f)
+            {
+                if (vecEqual(portalApex, portalLeft) ||
+                    triarea2(portalApex, portalRight, left) < 0.0f)
+                {
+                    // tighten the funnel
+                    portalLeft = left;
+                    leftIndex = i;
+                }
+                else
+                {
+                    // feft over right
+                    // insert right to path and restart scan from portal right point
+                    shortestPath[shortestPathCount++] = portalRight;
+                    // make current right the new apex
+                    portalApex = portalRight;
+                    apexIndex = rightIndex;
+                    // reset portal
+                    portalLeft = portalApex;
+                    portalRight = portalApex;
+                    leftIndex = apexIndex;
+                    rightIndex = apexIndex;
+                    // restart scan
+                    i = apexIndex;
+                    continue;
+                }
+            }
+        }
+        shortestPath[shortestPathCount++] = edgeArr[edgeCount - 1].first;
     }
     
     f32 sign(glm::vec2 p1, glm::vec2 p2, glm::vec2 p3)

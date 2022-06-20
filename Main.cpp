@@ -224,9 +224,14 @@ void Game::gameRender()
             }
             ENGINE.beginLines(camera);
             
-            for(u32 i = 0; i < edgeCount; i++)
+            // for(u32 i = 0; i < edgeCount; i++)
+            // {
+            //     ENGINE.drawLine(edgeArr[i].first, edgeArr[i].second, {1.0f, 1.0f, 1.0f, 1.0f});
+            // }
+
+            for (u32 i = 0; i + 1 < shortestPathCount; ++i)
             {
-                ENGINE.drawLine(edgeArr[i].first, edgeArr[i].second, {1.0f, 1.0f, 1.0f, 1.0f});
+                ENGINE.drawLine(shortestPath[i], shortestPath[i+1], {1.0f, 1.0f, 1.0f, 1.0f});
             }
             
             ENGINE.endLines();
