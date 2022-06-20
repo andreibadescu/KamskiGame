@@ -139,7 +139,7 @@ void Game::gameUpdate()
             
             velocitySystem();
             handleCombatPhases();
-            //updateEnemies();
+            updateEnemies();
             updateHealthBars();
             moveProjectiles();
             updatePlayer();
@@ -170,7 +170,7 @@ void Game::gameRender()
     ENGINE.beginBatch(camera);
     switch (gameState) {
         case GAME_PAUSED:
-            renderItems();
+        renderItems();
         case GAME_RUNNING:
         case GAME_LOST:
         renderMap();
@@ -185,16 +185,23 @@ void Game::gameRender()
     renderCursor();
     ENGINE.endBatch();
     u32 count = map.navMesh.polygonCount;
-    for(u32 i = 0; i < map.navMesh.polygonCount; i++)
-    {
-        ENGINE.beginTriangleFan(camera);
-        u32 vertexCount = map.navMesh.polygons[i].vertexCount;
-        for(u32 vInd = 0; vInd != map.navMesh.polygons[i].vertexCount; vInd++)
-        {
-            ENGINE.addFanVertex(map.navMesh.polygons[i].vertices[vInd], i);
-        }
-        ENGINE.endTriangleFan();
-    }
+    static bool showTriangles = false;
     
+    if(actionState.stam == KeyState::PRESS)
+        showTriangles = !showTriangles;
+    
+    if(showTriangles)
+    {
+        for(u32 i = 0; i < map.navMesh.polygonCount; i++)
+        {
+            ENGINE.beginTriangleFan(camera);
+            u32 vertexCount = map.navMesh.polygons[i].vertexCount;
+            for(u32 vInd = 0; vInd != map.navMesh.polygons[i].vertexCount; vInd++)
+            {
+                ENGINE.addFanVertex(map.navMesh.polygons[i].vertices[vInd], i);
+            }
+            ENGINE.endTriangleFan();
+        }
+    }
     ENGINE.swapClear();
 }
