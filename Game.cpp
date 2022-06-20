@@ -1,6 +1,8 @@
 #include "headers/Defines.h"
 #include "headers/Components.h"
 #include <random>
+#include <vector>
+#include <queue>
 
 class Game {
     public:
@@ -9,6 +11,8 @@ class Game {
     {
         glm::vec2* vertices;
         u32 vertexCount;
+        u32* neighborsInd;
+        u32 neighborCount;
     };
     
     struct Map {
@@ -264,6 +268,17 @@ class Game {
         }
     }
     
+    glm::vec2 calcPolygonCenter(const Polygon& poly)
+    {
+        glm::vec2 center{0.0f, 0.0f};
+        for (u32 i = 0; i < poly.vertexCount; ++i)
+        {
+            center += poly.vertices[i];
+        }
+        center /= (f32)poly.vertexCount;
+        return center;
+    }
+
     bool isCollision(glm::vec2 posA, glm::vec2 posB,
                      glm::vec2 sizeA, glm::vec2 sizeB)
     {
@@ -776,7 +791,18 @@ class Game {
         updatePlayerPosition();
         updatePlayerAttack();
         updatePlayerHealth();
-        const SpriteComponent& player = entityRegistry.getComponent<SpriteComponent>(playerEId);
+        // Test path finding
+        if (actionState.mana == KeyState::PRESS)
+        {
+            std::vector<glm::vec2> path;
+            glm::vec2 goal;
+            ENGINE.getMousePosition(goal.x, goal.y);
+            findPath(
+                entityRegistry.getComponent<TransformComponent>(playerEId).position,
+                goal,
+                path
+            );
+        }
     }
     
     /* Custom collision */
@@ -1304,6 +1330,21 @@ class Game {
         }
         ENGINE.globalFree(mat);
     }
+
+    bool arePolygonsNeighbors(Polygon& A, Polygon& B)
+    {
+        for (u32 i = 0; i < A.vertexCount; ++i)
+        {
+            for (u32 j = 0; j < B.vertexCount; ++j)
+            {
+                if (A.vertices[i] == B.vertices[j])
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
     
     void initMap(const u32 sizeX, const u32 sizeY)
     {
@@ -1334,7 +1375,115 @@ class Game {
             map.tiles[tile.y * map.size.x + tile.x] = TextureTag::FLOOR_HOLE;
             logInfo("(%u,%u)", tile.x, tile.y);
         }
+
         triangulatePolygon(vertexArr, vertexArrSize);
+        Map::NavigationMesh& mesh = map.navMesh;
+        for (u32 i = 0; i < mesh.polygonCount; ++i)
+        {
+            mesh.polygons[i].neighborsInd = (u32*)ENGINE.globalAlloc(100 * sizeof(u32));
+            mesh.polygons[i].neighborCount = 0;
+        }
+        for (u32 i = 1; i < mesh.polygonCount; ++i)
+        {
+            for (u32 j = 0; j < i; ++j)
+            {
+                if (arePolygonsNeighbors(mesh.polygons[i], mesh.polygons[j]))
+                {
+                    mesh.polygons[i].neighborsInd[mesh.polygons[i].neighborCount++] = j;
+                    mesh.polygons[j].neighborsInd[mesh.polygons[j].neighborCount++] = i;
+                }
+            }
+        }
+    }
+
+    f32 h(u32 ind1, u32 ind2)
+    {
+        Polygon* poly = map.navMesh.polygons;
+        glm::vec2 p1 = calcPolygonCenter(poly[ind1]);
+        glm::vec2 p2 = calcPolygonCenter(poly[ind2]);
+        return glm::distance(p1, p2);
+    }
+
+    u32 getPolygonIndexByPoint(glm::vec2 point)
+    {
+        Map::NavigationMesh& mesh = map.navMesh;
+        for (u32 i = 0; i < mesh.polygonCount; ++i)
+        {
+            if (isPointInsidePolygon(point, mesh.polygons[i]))
+                return i;
+        }
+        return INVALID;
+    }
+
+    void findPath(glm::vec2 start, glm::vec2 goal, std::vector<glm::vec2>& totalPath)
+    {
+        totalPath.clear();
+        Map::NavigationMesh& mesh = map.navMesh; 
+
+        u32 startInd = getPolygonIndexByPoint(start);
+        assert(startInd != INVALID);
+
+        u32 goalInd = getPolygonIndexByPoint(goal);
+        assert(goalInd != INVALID);
+
+        u32* cameFrom = (u32*)ENGINE.temporaryAlloc(mesh.polygonCount * sizeof(u32));
+        f32* gScore = (f32*)ENGINE.temporaryAlloc(mesh.polygonCount * sizeof(f32));
+        f32* fScore = (f32*)ENGINE.temporaryAlloc(mesh.polygonCount * sizeof(f32));
+        bool* marked = (bool*)ENGINE.temporaryAlloc(mesh.polygonCount * sizeof(bool));
+        memset(marked, false, mesh.polygonCount * sizeof(bool));
+        for (u32 i = 0; i < mesh.polygonCount; ++i)
+        {
+            gScore[i] = INFINITY;
+            fScore[i] = INFINITY;
+        }
+
+        cameFrom[startInd] = INVALID;
+        gScore[startInd] = 0.0f;
+        fScore[startInd] = h(startInd, goalInd);
+        marked[startInd] = true;
+
+        auto compare = [fScore](u32 a, u32 b)
+        {
+            return fScore[a] > fScore[b];
+        };
+        std::priority_queue<u32, std::vector<u32>, decltype(compare)> openSet(compare);
+        openSet.push(startInd);
+
+        while (!openSet.empty())
+        {
+            u32 currentInd = openSet.top();
+            if (currentInd == goalInd)
+            {
+                totalPath.push_back(goal);
+                u32 pointer = currentInd;
+                while (cameFrom[pointer] != INVALID)
+                {
+                    pointer = cameFrom[pointer];
+                    totalPath.push_back(calcPolygonCenter(mesh.polygons[pointer]));
+                }
+                totalPath.push_back(start);
+                return;
+            }
+            marked[currentInd] = false;
+            openSet.pop();
+            for (u32 i = 0; i < mesh.polygons[currentInd].neighborCount; ++i)
+            {
+                u32 neighborInd = mesh.polygons[currentInd].neighborsInd[i];
+                u32 tentative_gScore = gScore[currentInd] + h(currentInd, neighborInd);
+                if (tentative_gScore < gScore[neighborInd])
+                {
+                    cameFrom[neighborInd] = currentInd;
+                    gScore[neighborInd] = tentative_gScore;
+                    fScore[neighborInd] = tentative_gScore + h(neighborInd, goalInd);
+                    if (!marked[neighborInd]) // not in openSet
+                    {
+                        marked[neighborInd] = true;
+                        openSet.push(neighborInd);
+                    }
+                }
+            }
+        }
+        assert(NULL);
     }
     
     f32 sign(glm::vec2 p1, glm::vec2 p2, glm::vec2 p3)

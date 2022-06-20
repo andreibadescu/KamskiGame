@@ -14,9 +14,9 @@ void Game::gameInit()
     logDebug("%f %f", buttonSize.x, buttonSize.y);
     for (u32 i = 0; i < TEXTURE_COUNT; ++i)
     {
-        logDebug("%s", TEXTURE_PATHS[i]);
+        // logDebug("%s", TEXTURE_PATHS[i]);
         TextureId textureId = ENGINE.loadTexture(TEXTURE_PATHS[i]);
-        logDebug("%u", textureId);
+        // logDebug("%u", textureId);
         linkTextureIdByTag(textureId, (TextureTag)i);
     }
     for (u32 i = 0; i < ANIMATION_TAG_COUNT; ++i)
@@ -124,9 +124,9 @@ void Game::gameUpdate()
             
             ENGINE.simulateParticles(deltaTime);
             
-            TransformComponent& tr = entityRegistry.getComponent<TransformComponent>(playerEId);
-            glm::uvec2 tileCheck = getTileByPosition(tr.position);
-            logError("PlayerPos: %u %u", tileCheck.x, tileCheck.y);
+            // TransformComponent& tr = entityRegistry.getComponent<TransformComponent>(playerEId);
+            // glm::uvec2 tileCheck = getTileByPosition(tr.position);
+            // logError("PlayerPos: %u %u", tileCheck.x, tileCheck.y);
             
             EntityComponent& ent = entityRegistry.getComponent<EntityComponent>(playerEId);
             if(actionState.hp == KeyState::PRESS)

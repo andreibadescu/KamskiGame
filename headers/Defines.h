@@ -9,6 +9,8 @@ inline Game* GAME;
 using TextureId = u32;
 using ItemBit = u32;
 
+inline constexpr u32 INVALID = 0xFFFFFFFFu;
+inline constexpr u32 INFINITY_U32 = INVALID;
 inline constexpr u32 MAP_SIZE = 300;
 inline constexpr u32 MAP_SIZE_Y = MAP_SIZE;
 inline constexpr u32 MAP_SIZE_X = MAP_SIZE;
