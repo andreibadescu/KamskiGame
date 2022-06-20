@@ -83,9 +83,8 @@ class Game {
             f32 menuTime;
             MenuPhase menuPhase;
             u32 menuTagIndex;
-            
-            std::vector<glm::vec2> debugPath;
-            
+            std::vector<u32> debugPath;
+
             struct
             {
                 KeyState startGame;
@@ -798,11 +797,18 @@ class Game {
         {
             if(debugPath.size() == 0)
             {
+                glm::vec2 start = entityRegistry.getComponent<TransformComponent>(playerEId).position;
                 glm::vec2 goal = glm::vec2(camera.x, camera.y) + cursorPosition / camera.z;
-                findPath(entityRegistry.getComponent<TransformComponent>(playerEId).position,
-                         goal,
-                         debugPath);
-            } else
+                findPath(start, goal, debugPath);
+                simpleFunnel(start, goal);
+                // logInfo("Start printing polygons");
+                // for (u32 p: debugPath)
+                // {
+                //     logInfo("%u", p);
+                // }
+                // logInfo("END");
+            }
+            else
             {
                 debugPath.clear();
             }
@@ -1042,7 +1048,6 @@ class Game {
     
     void startGame()
     {
-        debugPath = std::vector<glm::vec2>();
         seed = std::random_device()();
         initMap(MAP_SIZE_X, MAP_SIZE_Y);
         addPlayer(startPosition, ENTITY_TYPE_PLAYER, ELF_M_IDLE);
@@ -1348,6 +1353,7 @@ class Game {
                     count++;
                     if(count == 2)
                         return true;
+                    break;
                 }
             }
         }
@@ -1423,7 +1429,7 @@ class Game {
         return INVALID;
     }
     
-    void findPath(glm::vec2 start, glm::vec2 goal, std::vector<glm::vec2>& totalPath)
+    void findPath(glm::vec2 start, glm::vec2 goal, std::vector<u32>& totalPath)
     {
         totalPath.clear();
         Map::NavigationMesh& mesh = map.navMesh; 
@@ -1462,14 +1468,12 @@ class Game {
             u32 currentInd = openSet.top();
             if (currentInd == goalInd)
             {
-                totalPath.push_back(goal);
-                u32 pointer = currentInd;
-                while (cameFrom[pointer] != INVALID)
+                do
                 {
-                    pointer = cameFrom[pointer];
-                    totalPath.push_back(calcPolygonCenter(mesh.polygons[pointer]));
+                    totalPath.push_back(currentInd);
+                    currentInd = cameFrom[currentInd];
                 }
-                totalPath.push_back(start);
+                while (currentInd != INVALID);
                 return;
             }
             marked[currentInd] = false;
@@ -1492,6 +1496,72 @@ class Game {
             }
         }
         assert(NULL);
+    }
+
+    f32 triarea2(glm::vec2 a, glm::vec2 b, glm::vec2 c)
+    {
+        return (c.x - a.x) * (b.y - a.y) - (b.x - a.x) * (c.y - a.y);
+    } 
+
+    bool vecEqual(glm::vec2 a, glm::vec2 b)
+    {
+        constexpr float eq = 0.001f * 0.001f;
+        return glm::distance(a,b) < eq;
+    }
+
+    bool getTriangleSharedEdge(Polygon& A, Polygon& B, glm::vec2 edge[2])
+    {
+        u32 count = 0;
+        for (u32 i = 0; i < A.vertexCount; ++i)
+        {
+            for (u32 j = 0; j < B.vertexCount; ++j)
+            {
+                if (A.vertices[i] == B.vertices[j])
+                {
+                    edge[count++] = A.vertices[i];
+                    if (count == 2)
+                        return true;
+                    break;
+                }
+            }
+        }
+        return false;
+    }
+
+    void simpleFunnel(glm::vec2 start, glm::vec2 goal)
+    {
+        union Edge
+        {
+            struct {
+                glm::vec2 first;
+                glm::vec2 second;
+            };
+            glm::vec2 v[2];
+        };
+        Map::NavigationMesh& mesh = map.navMesh;
+        std::reverse(debugPath.begin(), debugPath.end());
+
+        Edge* edgeArr = (Edge*)ENGINE.temporaryAlloc(1000 * sizeof(Edge));
+        u32 edgeCount = 0;
+        for (u32 i = 0; i + 1 <  debugPath.size(); ++i)
+        {
+            Polygon p1 = mesh.polygons[debugPath[i]];
+            Polygon p2 = mesh.polygons[debugPath[i + 1]];
+            glm::vec2 edge[2];
+            if (getTriangleSharedEdge(p1, p2, edge))
+            {
+                edgeArr[edgeCount].v[0] = edge[0];
+                edgeArr[edgeCount].v[1] = edge[1];
+                ++edgeCount;
+            }
+        }
+
+        for (u32 i = 0; i < edgeCount; ++i)
+        {
+            logInfo("Edge");
+            logInfo("(%f, %f)", edgeArr[i].first.x, edgeArr[i].first.y);
+            logInfo("(%f, %f)", edgeArr[i].second.x, edgeArr[i].second.y);
+        }
     }
     
     f32 sign(glm::vec2 p1, glm::vec2 p2, glm::vec2 p3)
@@ -1587,7 +1657,8 @@ class Game {
                     head->vertex = vertex;
                     head->prev = head;
                     head->next = head;
-                } else
+                }
+                else
                 {
                     Node* temp = (Node*)ENGINE.temporaryAlloc(sizeof(Node));
                     
@@ -1673,25 +1744,25 @@ class Game {
         memcpy(map.navMesh.polygons, triangles, trianglesCount * sizeof(Polygon));
         
         // DEBUG PART
-        logInfo("Triangles:");
-        for (u32 i = 0; i < map.navMesh.polygonCount; ++i)
-        {
-            Polygon& poly = map.navMesh.polygons[i];
-            glm::uvec2 tile[3];
-            assert(poly.vertexCount == 3);
-            for (u32 j = 0; j < poly.vertexCount; ++j)
-            {
-                tile[j] = getTileByPosition(poly.vertices[j]);
-            }
-            logInfo("{(%u,%u), (%u,%u), (%u,%u)}",
-                    tile[0].x,
-                    tile[0].y,
-                    tile[1].x,
-                    tile[1].y,
-                    tile[2].x,
-                    tile[2].y
-                    );
-        }
+        // logInfo("Triangles:");
+        // for (u32 i = 0; i < map.navMesh.polygonCount; ++i)
+        // {
+        //     Polygon& poly = map.navMesh.polygons[i];
+        //     glm::uvec2 tile[3];
+        //     assert(poly.vertexCount == 3);
+        //     for (u32 j = 0; j < poly.vertexCount; ++j)
+        //     {
+        //         tile[j] = getTileByPosition(poly.vertices[j]);
+        //     }
+        //     logInfo("{(%u,%u), (%u,%u), (%u,%u)}",
+        //             tile[0].x,
+        //             tile[0].y,
+        //             tile[1].x,
+        //             tile[1].y,
+        //             tile[2].x,
+        //             tile[2].y
+        //             );
+        // }
     }
     
     glm::vec2 getCenterPositionByTile(glm::uvec2 tile) const

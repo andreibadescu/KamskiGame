@@ -139,7 +139,7 @@ void Game::gameUpdate()
             
             velocitySystem();
             handleCombatPhases();
-            updateEnemies();
+            // updateEnemies();
             updateHealthBars();
             moveProjectiles();
             updatePlayer();
@@ -212,9 +212,8 @@ void Game::gameRender()
         }
         else
         {
-            for(glm::vec2 p : debugPath)
+            for(u32 i : debugPath)
             {
-                u32 i = getPolygonIndexByPoint(p);
                 ENGINE.beginTriangleFan(camera);
                 u32 vertexCount = map.navMesh.polygons[i].vertexCount;
                 for(u32 vInd = 0; vInd != map.navMesh.polygons[i].vertexCount; vInd++)
