@@ -188,6 +188,13 @@ void Game::gameRender()
     
     ENGINE.drawTexturedQuad(goal, {100,100}, ID(HEALTH_POTION), 0); 
     */
+    for(u32 i = 0; i < edgeCount; i++)
+    {
+        ENGINE.drawColoredQuad(edgeArr[i].first, {10, 10}, {1.0f, 0.0f, 0.0f, 0.5f}, 0);
+        ENGINE.drawColoredQuad(edgeArr[i].second, {10, 10}, {0.0f, 0.0f, 1.0f, 0.5f}, 0);
+    }
+    
+    
     ENGINE.endBatch();
     u32 count = map.navMesh.polygonCount;
     static bool showTriangles = false;
@@ -223,12 +230,12 @@ void Game::gameRender()
                 ENGINE.endTriangleFan();
             }
             ENGINE.beginLines(camera);
-            
-            // for(u32 i = 0; i < edgeCount; i++)
-            // {
-            //     ENGINE.drawLine(edgeArr[i].first, edgeArr[i].second, {1.0f, 1.0f, 1.0f, 1.0f});
-            // }
-
+            /*
+             for(u32 i = 0; i < edgeCount; i++)
+             {
+                 ENGINE.drawLine(edgeArr[i].first, edgeArr[i].second, {1.0f, 1.0f, 1.0f, 1.0f});
+             }
+            */
             for (u32 i = 0; i + 1 < shortestPathCount; ++i)
             {
                 ENGINE.drawLine(shortestPath[i], shortestPath[i+1], {1.0f, 1.0f, 1.0f, 1.0f});

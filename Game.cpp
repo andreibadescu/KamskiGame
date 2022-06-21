@@ -1519,7 +1519,11 @@ class Game {
     
     f32 triarea2(glm::vec2 a, glm::vec2 b, glm::vec2 c)
     {
-        return (c.x - a.x) * (b.y - a.y) - (b.x - a.x) * (c.y - a.y);
+        f32 ax = b.x - a.x;
+        f32 ay = b.y - a.y;
+        f32 bx = c.x - a.x;
+        f32 by = c.y - a.y;
+        return bx * ay - ax * by;
     } 
     
     bool vecEqual(glm::vec2 a, glm::vec2 b)
@@ -1551,49 +1555,54 @@ class Game {
     {
         Map::NavigationMesh& mesh = map.navMesh;
         std::reverse(debugPath.begin(), debugPath.end());
-
+        
         edgeCount = 0;
-
+        
         glm::vec2 startPortal[2]{start, start};
         edgeArr[edgeCount++].copyEdge(startPortal);
-
+        
         for (u32 i = 0; i + 1 <  debugPath.size(); ++i)
         {
             Polygon p1 = mesh.polygons[debugPath[i]];
             Polygon p2 = mesh.polygons[debugPath[i + 1]];
             glm::vec2 edge[2];
-            if (getTriangleSharedEdge(p1, p2, edge))
+            
+            if(!getTriangleSharedEdge(p1, p2, edge))
+                assert(NULL);
+            
+            if(edgeArr[edgeCount - 1].first == edge[1] || edgeArr[edgeCount - 1].second == edge[0])
             {
-                edgeArr[edgeCount++].copyEdge(edge);
+                std::swap(edge[0], edge[1]);
             }
+            
+            edgeArr[edgeCount++].copyEdge(edge);
         }
-
+        
         glm::vec2 endPortal[2]{goal, goal};
         edgeArr[edgeCount++].copyEdge(endPortal);
-
-        for (u32 i = 0; i < edgeCount; ++i)
-        {
-            logInfo("Edge");
-            logInfo("(%f, %f)", edgeArr[i].first.x, edgeArr[i].first.y);
-            logInfo("(%f, %f)", edgeArr[i].second.x, edgeArr[i].second.y);
-        }
-
-        u32 shortestPathCount = 0;
+//
+        //for (u32 i = 0; i < edgeCount; ++i)
+        //{
+            //logInfo("Edge");
+            //logInfo("(%f, %f)", edgeArr[i].first.x, edgeArr[i].first.y);
+            //logInfo("(%f, %f)", edgeArr[i].second.x, edgeArr[i].second.y);
+        //}
+//
+        shortestPathCount = 0;
         u32 apexIndex = 0;
         u32 leftIndex = 0;
         u32 rightIndex = 0;
         // init scan state
-        glm::vec2 portalApex = edgeArr[0].first;
+        glm::vec2 portalApex = edgeArr[0].first; // 2
         glm::vec2 portalLeft = edgeArr[0].first;
         glm::vec2 portalRight = edgeArr[0].second;
-
         // add start point
         shortestPath[shortestPathCount++] = portalApex;
         for (u32 i = 1; i < edgeCount; ++i)
         {
             glm::vec2 left = edgeArr[i].first;
-            glm::vec2 right = edgeArr[i].second;
-
+            glm::vec2 right = edgeArr[i].second; 
+            
             // update right vertex
             if (triarea2(portalApex, portalRight, right) <= 0.0f)
             {
