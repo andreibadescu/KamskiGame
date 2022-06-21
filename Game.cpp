@@ -1454,10 +1454,14 @@ class Game {
         Map::NavigationMesh& mesh = map.navMesh; 
         
         u32 startInd = getPolygonIndexByPoint(start);
-        assert(startInd != INVALID);
+        if (startInd == INVALID)
+            return;
+        // assert(startInd != INVALID);
         
         u32 goalInd = getPolygonIndexByPoint(goal);
-        assert(goalInd != INVALID);
+        if (goalInd == INVALID)
+            return;
+        // assert(goalInd != INVALID);
         
         u32* cameFrom = (u32*)ENGINE.temporaryAlloc(mesh.polygonCount * sizeof(u32));
         f32* gScore = (f32*)ENGINE.temporaryAlloc(mesh.polygonCount * sizeof(f32));
@@ -2118,7 +2122,7 @@ class Game {
         }
     }
     
-    void loadMapFromFile(const char* path="map.txt")
+    void loadMapFromFile(const char* path="map2.txt")
     {
         map.size = {200,100};
         u32 bufferSize = (map.size.x + 2) * map.size.y + 5;
