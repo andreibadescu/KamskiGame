@@ -17,7 +17,7 @@ void Game::gameInit()
         logDebug("%s", TEXTURE_PATHS[i]);
         TextureId textureId = ENGINE.loadTexture(TEXTURE_PATHS[i]);
         logDebug("%u", textureId);
-        linkTextureIdByTag(textureId, (TextureTag)i);
+        linkTextureIdByTag(textureId, (AssetTag)i);
     }
     for (u32 i = 0; i < ANIMATION_TAG_COUNT; ++i)
     {
