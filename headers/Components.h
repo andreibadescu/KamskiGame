@@ -1,8 +1,5 @@
 #pragma once
-
 #include "Defines.h"
-
-using EntityComponent = EntityStats;
 
 struct TransformComponent
 {
@@ -21,33 +18,22 @@ struct ColliderComponent
     glm::vec2 hitBox;
 };
 
-struct SpriteComponent
-{
-    AnimationTag animation;
-    f64 startTime;
-    f64 endTime;
-};
-
 struct SolidColorComponent
 {
     glm::vec4 color;
-};
-
-struct EnemyComponent
-{
-    enum Phase
-    {
-        WALK,
-        SHOOT,
-        WAIT
-    }phase;
-    f32 startTime;
 };
 
 struct VelocityComponent
 {
     glm::vec2 targetVel;
     glm::vec2 vel;
+};
+
+struct StatsComponent
+{
+    f32 movementSpeed;
+    f32 healthPoints;
+    f32 attackPoints;
 };
 
 struct FollowComponent
@@ -77,3 +63,15 @@ struct ItemComponent
     // Bow sword, shield, helmet, etc.
     ItemBit itemId;
 };
+
+#define KAMSKI_COMPONENTS \
+TransformComponent,\
+TypeComponent, \
+ColliderComponent, \
+SolidColorComponent, \
+FollowComponent, \
+StatsComponent, \
+ProjectileComponent, \
+HealthBarComponent, \
+ItemComponent, \
+VelocityComponent
